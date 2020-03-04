@@ -4,6 +4,7 @@ import (
     "io"
     "io/ioutil"
     "net/http"
+    "log"
 )
 
 // "/"
@@ -34,5 +35,5 @@ func main() {
 	http.HandleFunc("/ping", pingHandler)
 	http.HandleFunc("/upload", logstashPipelineHandler)
 
-	http.ListenAndServe(":8081", nil)
+	log.Fatal(http.ListenAndServe(":8081", nil))
 }
