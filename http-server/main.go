@@ -9,12 +9,12 @@ import (
 // "/"
 // Main page return documentation about server.
 func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
-	readmeContent, err := ioutil.ReadFile("../README.md")
+    readmeContent, err := ioutil.ReadFile("../README.md")
     if err == nil {
-    	io.WriteString(responseWriter, string(readmeContent))
-	} else {
-		io.WriteString(responseWriter, "Logstash filters tester's server\n")
-	}
+        io.WriteString(responseWriter, string(readmeContent))
+    } else {
+        io.WriteString(responseWriter, "Logstash filters tester's server\n")
+    }
 }
 
 // "/ping"
