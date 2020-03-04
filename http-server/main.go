@@ -7,9 +7,9 @@ import (
 )
 
 // "/"
-// Main page return documentation about server.
+// Main page returns documentation about server.
 func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    readmeContent, err := ioutil.ReadFile("../README.md")
+    readmeContent, err := ioutil.ReadFile("README.md")
     if err == nil {
         io.WriteString(responseWriter, string(readmeContent))
     } else {
