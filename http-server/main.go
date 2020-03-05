@@ -9,12 +9,12 @@ import (
 )
 
 type logstashPipelineInput struct {
-	Message	 	string 		`json:"message"`
-	Filter   	string     	`json:"filter"`
+    Message     string      `json:"message"`
+    Filter      string      `json:"filter"`
 }
 
 type logstashPipelineOutput struct {
-	Output 		string      `json:"output"`
+    Output      string      `json:"output"`
 }
 
 // "/"
@@ -31,28 +31,28 @@ func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // "/ping"
 // Allow simply check if server works.
 func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
-	io.WriteString(responseWriter, "pong")
+    io.WriteString(responseWriter, "pong")
 }
 
 // "/upload"
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
-	response := logstashPipelineOutput{Output: "sample output"}
+    response := logstashPipelineOutput{Output: "sample output"}
 
-	responseJson, err := json.Marshal(response)
-	if err != nil {
-	    http.Error(responseWriter, err.Error(), http.StatusInternalServerError)
-	    return
-	}
+    responseJson, err := json.Marshal(response)
+    if err != nil {
+        http.Error(responseWriter, err.Error(), http.StatusInternalServerError)
+        return
+    }
 
-	responseWriter.Header().Set("Content-Type", "application/json")
-	responseWriter.Write(responseJson)
+    responseWriter.Header().Set("Content-Type", "application/json")
+    responseWriter.Write(responseJson)
 }
 
 func main() {
-	http.HandleFunc("/", mainHandler)
-	http.HandleFunc("/ping", pingHandler)
-	http.HandleFunc("/upload", logstashPipelineHandler)
+    http.HandleFunc("/", mainHandler)
+    http.HandleFunc("/ping", pingHandler)
+    http.HandleFunc("/upload", logstashPipelineHandler)
 
-	log.Fatal(http.ListenAndServe(":8081", nil))
+    log.Fatal(http.ListenAndServe(":8081", nil))
 }
