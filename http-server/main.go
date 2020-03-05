@@ -17,11 +17,16 @@ type logstashPipelineOutput struct {
     Output      string      `json:"output"`
 }
 
+func checkRequest(request *http.Request) (error int) {
+    error = 0
+    return error
+}
+
 // "/"
 // Main page returns documentation about server.
 func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    readmeContent, err := ioutil.ReadFile("README.md")
-    if err == nil {
+    readmeContent, error := ioutil.ReadFile("README.md")
+    if error == nil {
         io.WriteString(responseWriter, string(readmeContent))
     } else {
         io.WriteString(responseWriter, "Logstash filters tester's server\n")
@@ -37,11 +42,19 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // "/upload"
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    response := logstashPipelineOutput{Output: "sample output"}
+    checkRequestError := checkRequest(request)
 
-    responseJson, err := json.Marshal(response)
-    if err != nil {
-        http.Error(responseWriter, err.Error(), http.StatusInternalServerError)
+    response := logstashPipelineOutput{}
+
+    if checkRequestError == 0 {
+        response = logstashPipelineOutput{Output: "correct request"}
+    } else {
+        response = logstashPipelineOutput{Output: "bad request"}
+    }
+
+    responseJson, marshalError := json.Marshal(response)
+    if marshalError != nil {
+        http.Error(responseWriter, marshalError.Error(), http.StatusInternalServerError)
         return
     }
 
