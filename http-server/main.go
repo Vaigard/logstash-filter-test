@@ -5,7 +5,17 @@ import (
     "io/ioutil"
     "net/http"
     "log"
+    "encoding/json"
 )
+
+type logstashPipelineInput struct {
+	Message	 	string 		`json:"message"`
+	Filter   	string     	`json:"filter"`
+}
+
+type logstashPipelineOutput struct {
+	Output 		string      `json:"output"`
+}
 
 // "/"
 // Main page returns documentation about server.
@@ -27,7 +37,16 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // "/upload"
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
-	io.WriteString(responseWriter, "logstashPipelineHandler\n")
+	response := logstashPipelineOutput{Output: "sample output"}
+
+	responseJson, err := json.Marshal(response)
+	if err != nil {
+	    http.Error(responseWriter, err.Error(), http.StatusInternalServerError)
+	    return
+	}
+
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.Write(responseJson)
 }
 
 func main() {
