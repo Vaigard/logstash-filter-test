@@ -36,17 +36,12 @@ func getRequestType(request *http.Request) int {
         return RequestTypeInvalid
     }
 
-    log.Print("UNMARSHAL\n")
-
     requestBodyJson := logstashPipelineInput{}
     err = json.Unmarshal(requestBody, &requestBodyJson)
     if err != nil {
         log.Printf(err.Error())
         return RequestTypeInvalid
     }
-
-    log.Print("REQUEST\n")
-    log.Print(requestBodyJson)
 
     if requestBodyJson.Filter == "" {
         return RequestTypeEmptyFilter
