@@ -8,13 +8,13 @@ import (
     "encoding/json"
 )
 
-type RequestTypes struct {
-    Invalid                  int   -1
-    EmptyFilter              int    0
-    MessageFilter            int    1
-    MessageFilterExpected    int    2
-    Filter                   int    3
-}
+const (
+    RequestTypeInvalid                 = -1
+    RequestTypeEmptyFilter             = 0
+    RequestTypeMessageFilter           = 1
+    RequestTypeMessageFilterExpected   = 2
+    RequestTypeFilter                  = 3
+)
 
 type logstashPipelineInput struct {
     Message     string      `json:"message"`
@@ -29,26 +29,38 @@ type logstashPipelineOutput struct {
     Status      string      `json:"status"`
 }
 
-func getRequestType(request *http.Request) (requestType int) {
-    requestBody interface{}
-    requestType = RequestTypes.Filter
-    if err := json.NewDecoder(request.Body).Decode(requestBody); err != nil {
-        requestType = RequestTypes.Invalid
+func getRequestType(request *http.Request) int {
+    requestBody, err := ioutil.ReadAll(request.Body)
+    defer request.Body.Close()
+    if err != nil {
+        return RequestTypeInvalid
     }
 
-    if requestBody.Filter == nil {
-        requestType = RequestTypes.EmptyFilter
+    log.Print("UNMARSHAL\n")
+
+    requestBodyJson := logstashPipelineInput{}
+    err = json.Unmarshal(requestBody, &requestBodyJson)
+    if err != nil {
+        log.Printf(err.Error())
+        return RequestTypeInvalid
     }
 
-    if requestBody.Message != nil and requestBody.Expected != nil {
-        requestType = RequestTypes.MessageFilterExpected
+    log.Print("REQUEST\n")
+    log.Print(requestBodyJson)
+
+    if requestBodyJson.Filter == "" {
+        return RequestTypeEmptyFilter
     }
 
-    if requestBody.Message != nil and requestBody.Expected == nil {
-        requestType = RequestTypes.MessageFilter
+    if requestBodyJson.Message != "" && requestBodyJson.Expected != "" {
+        return RequestTypeMessageFilterExpected
     }
 
-    return requestType
+    if requestBodyJson.Message != "" && requestBodyJson.Expected == "" {
+        return RequestTypeMessageFilter
+    }
+
+    return RequestTypeFilter
 }
 
 // "/"
@@ -74,15 +86,15 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
     response := logstashPipelineOutput{}
 
     switch requestType := getRequestType(request); requestType {
-    case RequestTypes.Invalid:
+    case RequestTypeInvalid:
         response = logstashPipelineOutput{Status: "Invalid request body"}
-    case RequestTypes.EmptyFilter:
+    case RequestTypeEmptyFilter:
         response = logstashPipelineOutput{Status: "Empty filter field"}
-    case RequestTypes.Filter:
+    case RequestTypeFilter:
         response = logstashPipelineOutput{Status: "Filter"}
-    case RequestTypes.MessageFilter:
+    case RequestTypeMessageFilter:
         response = logstashPipelineOutput{Status: "MessageFilter"}
-    case RequestTypes.MessageFilterExpected:
+    case RequestTypeMessageFilterExpected:
         response = logstashPipelineOutput{Status: "MessageFilterExpected"}
     default:
         response = logstashPipelineOutput{Status: "Internal server error"}
