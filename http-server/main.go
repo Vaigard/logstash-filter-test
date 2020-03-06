@@ -8,18 +8,47 @@ import (
     "encoding/json"
 )
 
+type RequestTypes struct {
+    Invalid                  int   -1
+    EmptyFilter              int    0
+    MessageFilter            int    1
+    MessageFilterExpected    int    2
+    Filter                   int    3
+}
+
 type logstashPipelineInput struct {
     Message     string      `json:"message"`
     Filter      string      `json:"filter"`
+    Expected    string      `json:"expected"`
 }
 
 type logstashPipelineOutput struct {
     Output      string      `json:"output"`
+    Diff        string      `json:"diff"`
+    Lint        string      `json:"lint"`
+    Status      string      `json:"status"`
 }
 
-func checkRequest(request *http.Request) (error int) {
-    error = 0
-    return error
+func getRequestType(request *http.Request) (requestType int) {
+    requestBody interface{}
+    requestType = RequestTypes.Filter
+    if err := json.NewDecoder(request.Body).Decode(requestBody); err != nil {
+        requestType = RequestTypes.Invalid
+    }
+
+    if requestBody.Filter == nil {
+        requestType = RequestTypes.EmptyFilter
+    }
+
+    if requestBody.Message != nil and requestBody.Expected != nil {
+        requestType = RequestTypes.MessageFilterExpected
+    }
+
+    if requestBody.Message != nil and requestBody.Expected == nil {
+        requestType = RequestTypes.MessageFilter
+    }
+
+    return requestType
 }
 
 // "/"
@@ -42,14 +71,21 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // "/upload"
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    checkRequestError := checkRequest(request)
-
     response := logstashPipelineOutput{}
 
-    if checkRequestError == 0 {
-        response = logstashPipelineOutput{Output: "correct request"}
-    } else {
-        response = logstashPipelineOutput{Output: "bad request"}
+    switch requestType := getRequestType(request); requestType {
+    case RequestTypes.Invalid:
+        response = logstashPipelineOutput{Status: "Invalid request body"}
+    case RequestTypes.EmptyFilter:
+        response = logstashPipelineOutput{Status: "Empty filter field"}
+    case RequestTypes.Filter:
+        response = logstashPipelineOutput{Status: "Filter"}
+    case RequestTypes.MessageFilter:
+        response = logstashPipelineOutput{Status: "MessageFilter"}
+    case RequestTypes.MessageFilterExpected:
+        response = logstashPipelineOutput{Status: "MessageFilterExpected"}
+    default:
+        response = logstashPipelineOutput{Status: "Internal server error"}
     }
 
     responseJson, marshalError := json.Marshal(response)
