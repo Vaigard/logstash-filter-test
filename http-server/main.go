@@ -30,13 +30,12 @@ type logstashPipelineOutput struct {
     Status      string      `json:"status"`
 }
 
-func getRequestType(request *http.Request) int {
+func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
+    pipelineInput := logstashPipelineInput{}
     multiPartReader, error := request.MultipartReader()
     if error != nil {
-        return RequestTypeInvalid
+        return pipelineInput, RequestTypeInvalid
     }
-
-    pipelineData := logstashPipelineInput{}
 
     for {
         part, error := multiPartReader.NextPart()
@@ -48,7 +47,7 @@ func getRequestType(request *http.Request) int {
 
         // Any other error
         if error != nil {
-            return RequestTypeInvalid
+            return pipelineInput, RequestTypeInvalid
         }
 
         var buffer bytes.Buffer
@@ -56,31 +55,29 @@ func getRequestType(request *http.Request) int {
 
         switch part.FormName() {
         case "filter":
-            pipelineData.Filter = buffer.String()
+            pipelineInput.Filter = buffer.String()
         case "message":
-            pipelineData.Message = buffer.String()
+            pipelineInput.Message = buffer.String()
         case "expected":
-            pipelineData.Expected = buffer.String()
+            pipelineInput.Expected = buffer.String()
         default:
-            return RequestTypeInvalid
+            return pipelineInput, RequestTypeInvalid
         }
     }
 
-    log.Println(pipelineData.Filter, pipelineData.Message, pipelineData.Expected)
-
-    if pipelineData.Filter == "" {
-        return RequestTypeEmptyFilter
+    if pipelineInput.Filter == "" {
+        return pipelineInput, RequestTypeEmptyFilter
     }
 
-    if pipelineData.Message != "" && pipelineData.Expected != "" {
-        return RequestTypeMessageFilterExpected
+    if pipelineInput.Message != "" && pipelineInput.Expected != "" {
+        return pipelineInput, RequestTypeMessageFilterExpected
     }
 
-    if pipelineData.Message != "" && pipelineData.Expected == "" {
-        return RequestTypeMessageFilter
+    if pipelineInput.Message != "" && pipelineInput.Expected == "" {
+        return pipelineInput, RequestTypeMessageFilter
     }
 
-    return RequestTypeFilter
+    return pipelineInput, RequestTypeFilter
 }
 
 // "/"
@@ -105,9 +102,12 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
     response := logstashPipelineOutput{}
 
-    switch requestType := getRequestType(request); requestType {
+    // _ -> pipelineInput
+    _, requestType := getPipelineInput(request)
+
+    switch requestType {
     case RequestTypeInvalid:
-        response = logstashPipelineOutput{Status: "Invalid request body"}
+        response = logstashPipelineOutput{Status: "Invalid request"}
     case RequestTypeEmptyFilter:
         response = logstashPipelineOutput{Status: "Empty filter field"}
     case RequestTypeFilter:
