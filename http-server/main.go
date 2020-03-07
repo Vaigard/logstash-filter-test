@@ -6,6 +6,7 @@ import (
     "net/http"
     "log"
     "encoding/json"
+    "bytes"
 )
 
 const (
@@ -17,9 +18,9 @@ const (
 )
 
 type logstashPipelineInput struct {
-    Message     string      `json:"message"`
-    Filter      string      `json:"filter"`
-    Expected    string      `json:"expected"`
+    Message     string
+    Filter      string
+    Expected    string
 }
 
 type logstashPipelineOutput struct {
@@ -30,28 +31,52 @@ type logstashPipelineOutput struct {
 }
 
 func getRequestType(request *http.Request) int {
-    requestBody, err := ioutil.ReadAll(request.Body)
-    defer request.Body.Close()
-    if err != nil {
+    multiPartReader, error := request.MultipartReader()
+    if error != nil {
         return RequestTypeInvalid
     }
 
-    requestBodyJson := logstashPipelineInput{}
-    err = json.Unmarshal(requestBody, &requestBodyJson)
-    if err != nil {
-        log.Printf(err.Error())
-        return RequestTypeInvalid
+    pipelineData := logstashPipelineInput{}
+
+    for {
+        part, error := multiPartReader.NextPart()
+
+        // This is OK, no more parts
+        if error == io.EOF {
+            break
+        }
+
+        // Any other error
+        if error != nil {
+            return RequestTypeInvalid
+        }
+
+        var buffer bytes.Buffer
+        io.Copy(&buffer, part)
+
+        switch part.FormName() {
+        case "filter":
+            pipelineData.Filter = buffer.String()
+        case "message":
+            pipelineData.Message = buffer.String()
+        case "expected":
+            pipelineData.Expected = buffer.String()
+        default:
+            return RequestTypeInvalid
+        }
     }
 
-    if requestBodyJson.Filter == "" {
+    log.Println(pipelineData.Filter, pipelineData.Message, pipelineData.Expected)
+
+    if pipelineData.Filter == "" {
         return RequestTypeEmptyFilter
     }
 
-    if requestBodyJson.Message != "" && requestBodyJson.Expected != "" {
+    if pipelineData.Message != "" && pipelineData.Expected != "" {
         return RequestTypeMessageFilterExpected
     }
 
-    if requestBodyJson.Message != "" && requestBodyJson.Expected == "" {
+    if pipelineData.Message != "" && pipelineData.Expected == "" {
         return RequestTypeMessageFilter
     }
 
