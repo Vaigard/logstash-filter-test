@@ -43,13 +43,11 @@ func compareOutput(expected string, actual string) string {
 }
 
 func testPipeline(pipelineInput logstashPipelineInput, requestType int) logstashPipelineOutput {
-    pipelineOutput := logstashPipelineOutput{}
-
-    pipelineOutput.Lint = lintFitler(pipelineInput.Filter)
-
-    if requestType != RequestTypeFilter {
-        pipelineOutput.Output = processMessage(pipelineInput.Message, pipelineInput.Filter)
+    if requestType == RequestTypeFilter {
+        return logstashPipelineOutput{Lint: lintFitler(pipelineInput.Filter)}
     }
+
+    pipelineOutput := logstashPipelineOutput{Output: processMessage(pipelineInput.Message, pipelineInput.Filter)}
 
     if requestType == RequestTypeMessageFilterExpected {
         pipelineOutput.Diff = compareOutput(pipelineInput.Expected, pipelineOutput.Output)
