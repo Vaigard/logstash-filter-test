@@ -30,6 +30,34 @@ type logstashPipelineOutput struct {
     Status      string      `json:"status"`
 }
 
+func lintFitler(filter string) string {
+    return "lintFitler"
+}
+
+func processMessage(message string, filter string) string {
+    return "processMessage"
+}
+
+func compareOutput(expected string, actual string) string {
+    return "compareOutput"
+}
+
+func testPipeline(pipelineInput logstashPipelineInput, requestType int) logstashPipelineOutput {
+    pipelineOutput := logstashPipelineOutput{}
+
+    pipelineOutput.Lint = lintFitler(pipelineInput.Filter)
+
+    if requestType != RequestTypeFilter {
+        pipelineOutput.Output = processMessage(pipelineInput.Message, pipelineInput.Filter)
+    }
+
+    if requestType == RequestTypeMessageFilterExpected {
+        pipelineOutput.Diff = compareOutput(pipelineInput.Expected, pipelineOutput.Output)
+    }
+
+    return pipelineOutput
+}
+
 func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
     pipelineInput := logstashPipelineInput{}
     multiPartReader, error := request.MultipartReader()
@@ -100,27 +128,21 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // "/upload"
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    response := logstashPipelineOutput{}
+    pipelineOutput := logstashPipelineOutput{}
 
-    // _ -> pipelineInput
-    _, requestType := getPipelineInput(request)
+    pipelineInput, requestType := getPipelineInput(request)
 
     switch requestType {
     case RequestTypeInvalid:
-        response = logstashPipelineOutput{Status: "Invalid request"}
+        pipelineOutput = logstashPipelineOutput{Status: "Invalid request"}
     case RequestTypeEmptyFilter:
-        response = logstashPipelineOutput{Status: "Empty filter field"}
-    case RequestTypeFilter:
-        response = logstashPipelineOutput{Status: "Filter"}
-    case RequestTypeMessageFilter:
-        response = logstashPipelineOutput{Status: "MessageFilter"}
-    case RequestTypeMessageFilterExpected:
-        response = logstashPipelineOutput{Status: "MessageFilterExpected"}
+        pipelineOutput = logstashPipelineOutput{Status: "Empty filter field"}
     default:
-        response = logstashPipelineOutput{Status: "Internal server error"}
+        pipelineOutput = testPipeline(pipelineInput, requestType)
+        pipelineOutput.Status = "OK"
     }
 
-    responseJson, marshalError := json.Marshal(response)
+    responseJson, marshalError := json.Marshal(pipelineOutput)
     if marshalError != nil {
         http.Error(responseWriter, marshalError.Error(), http.StatusInternalServerError)
         return
