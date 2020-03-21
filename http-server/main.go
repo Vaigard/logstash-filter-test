@@ -7,6 +7,7 @@ import (
     "log"
     "encoding/json"
     "bytes"
+    "time"
 )
 
 const (
@@ -35,7 +36,24 @@ func lintFitler(filter string) string {
 }
 
 func processMessage(message string, filter string) string {
-    return "processMessage"
+    err := ioutil.WriteFile("/home/user/projects/logstash-filter-test/container/logstash/pipeline/filter.conf", []byte(filter), 0644)
+    if err != nil {
+        return "Cannot write filter: " + err.Error()
+    }
+
+    time.Sleep(60 * 1000 * time.Millisecond)
+
+    err = ioutil.WriteFile("/home/user/projects/logstash-filter-test/container/logstash/io/input.txt", []byte(message), 0644)
+    if err != nil {
+        return "Cannot write message: " + err.Error()
+    }
+
+    output, err := ioutil.ReadFile("/home/user/projects/logstash-filter-test/container/logstash/io/output.json")
+    if err != nil {
+        return "Cannot read output: " + err.Error()
+    }
+
+    return string(output)
 }
 
 func compareOutput(expected string, actual string) string {

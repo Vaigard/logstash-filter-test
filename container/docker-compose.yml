@@ -16,3 +16,7 @@ services:
       - type: bind
         source: ./logstash/pipeline/
         target: /usr/share/logstash/pipeline
+
+      - type: bind
+        source: ./logstash/io
+        target: /usr/share/logstash/io
