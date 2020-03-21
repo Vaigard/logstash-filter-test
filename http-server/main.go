@@ -8,6 +8,7 @@ import (
     "encoding/json"
     "bytes"
     "time"
+    "os"
 )
 
 const (
@@ -16,6 +17,12 @@ const (
     RequestTypeMessageFilter           = 1
     RequestTypeMessageFilterExpected   = 2
     RequestTypeFilter                  = 3
+)
+
+const (
+    InputFilePath    = "/home/user/projects/logstash-filter-test/container/logstash/io/input.txt"
+    FilterFilePath   = "/home/user/projects/logstash-filter-test/container/logstash/pipeline/filter.conf"
+    OutputFilePath   = "/home/user/projects/logstash-filter-test/container/logstash/io/output.json"
 )
 
 type logstashPipelineInput struct {
@@ -32,26 +39,37 @@ type logstashPipelineOutput struct {
 }
 
 func lintFitler(filter string) string {
-    return "lintFitler"
+    return "lintFilter"
 }
 
 func processMessage(message string, filter string) string {
-    err := ioutil.WriteFile("/home/user/projects/logstash-filter-test/container/logstash/pipeline/filter.conf", []byte(filter), 0644)
+    err := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
     if err != nil {
         return "Cannot write filter: " + err.Error()
     }
 
-    time.Sleep(60 * 1000 * time.Millisecond)
+    time.Sleep(10 * 1000 * time.Millisecond)
 
-    err = ioutil.WriteFile("/home/user/projects/logstash-filter-test/container/logstash/io/input.txt", []byte(message), 0644)
+    err = ioutil.WriteFile(InputFilePath, []byte(message + "\n"), 0644)
     if err != nil {
         return "Cannot write message: " + err.Error()
     }
 
-    output, err := ioutil.ReadFile("/home/user/projects/logstash-filter-test/container/logstash/io/output.json")
+    time.Sleep(10 * 1000 * time.Millisecond)
+
+    output, err := ioutil.ReadFile(OutputFilePath)
     if err != nil {
         return "Cannot read output: " + err.Error()
     }
+
+    // Fix default configs and purge pipeline files
+    //outputFile, _ := os.OpenFile(OutputFilePath, os.O_TRUNC, 0666)
+    //defer outputFile.Close()
+    
+    ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n"), 0644)
+    ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
+    time.Sleep(5 * 1000 * time.Millisecond)
+    os.Remove(OutputFilePath)
 
     return string(output)
 }
@@ -172,6 +190,10 @@ func main() {
     http.HandleFunc("/", mainHandler)
     http.HandleFunc("/ping", pingHandler)
     http.HandleFunc("/upload", logstashPipelineHandler)
+
+    os.Remove(InputFilePath)
+    os.Remove(OutputFilePath)
+    ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
 
     log.Fatal(http.ListenAndServe(":8081", nil))
 }
