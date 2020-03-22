@@ -50,7 +50,7 @@ func processMessage(message string, filter string) string {
 
     time.Sleep(10 * 1000 * time.Millisecond)
 
-    err = ioutil.WriteFile(InputFilePath, []byte(message + "\n"), 0644)
+    err = ioutil.WriteFile(InputFilePath, []byte(message), 0644)
     if err != nil {
         return "Cannot write message: " + err.Error()
     }

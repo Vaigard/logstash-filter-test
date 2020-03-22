@@ -15,3 +15,5 @@
 # vendor/
 ignored/
 
+# Test input and output files
+containter/logstash/io

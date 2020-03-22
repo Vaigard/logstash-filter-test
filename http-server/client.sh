@@ -1,7 +1,5 @@
 #!/bin/sh
 
-#curl -i --request POST -F "filter=@/home/user/projects/logstash-filter-test/http-server/main.go" -F 'message="45 14 march asd\\qwe"' -F 'expected="{\"one\":\"two\"}"' 127.0.0.1:8081/upload && echo
-
 if [ "$#" -ne 6 ]; then
   echo "Usage: ./client.sh -s <server> -f <filter file name> -m <message file name>" >&2
   exit 1
@@ -43,3 +41,5 @@ if [ "$ping_res" != "pong" ]; then
 fi
 
 echo "Start testing..."
+
+curl -i --request POST -F "filter=@$filter_file" -F "message=@$message_file" "$server"/upload && echo
