@@ -15,4 +15,5 @@ COPY ./container/config/pipelines.yml /usr/share/logstash/config/pipelines.yml
 COPY ./container/io/filter.conf /usr/share/logstash/pipeline/filter.conf
 COPY ./container/io/io.conf /usr/share/logstash/pipeline/io.conf
 
+# how to save logstash? /bin/logstash
 CMD ["./server"]
