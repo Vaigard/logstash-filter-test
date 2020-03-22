@@ -6,17 +6,17 @@ services:
       context: ./
     volumes:
       - type: bind
-        source: ./logstash/config/pipelines.yml
+        source: ./container/config/pipelines.yml
         target: /usr/share/logstash/config/pipelines.yml
         
       - type: bind
-        source: ./logstash/config/logstash.yml
+        source: ./container/config/logstash.yml
         target: /usr/share/logstash/config/logstash.yml
         
       - type: bind
-        source: ./logstash/pipeline/
+        source: ./container/pipeline/
         target: /usr/share/logstash/pipeline
 
       - type: bind
-        source: ./logstash/io
+        source: ./container/io
         target: /usr/share/logstash/io
