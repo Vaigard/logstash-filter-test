@@ -61,10 +61,6 @@ func processMessage(message string, filter string) string {
     if err != nil {
         return "Cannot read output: " + err.Error()
     }
-
-    // Fix default configs and purge pipeline files
-    //outputFile, _ := os.OpenFile(OutputFilePath, os.O_TRUNC, 0666)
-    //defer outputFile.Close()
     
     ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n"), 0644)
     ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
