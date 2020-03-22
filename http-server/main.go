@@ -7,6 +7,8 @@ import (
     "log"
     "encoding/json"
     "bytes"
+    "time"
+    "os"
 )
 
 const (
@@ -15,6 +17,12 @@ const (
     RequestTypeMessageFilter           = 1
     RequestTypeMessageFilterExpected   = 2
     RequestTypeFilter                  = 3
+)
+
+const (
+    InputFilePath    = "/home/user/projects/logstash-filter-test/container/logstash/io/input.txt"
+    FilterFilePath   = "/home/user/projects/logstash-filter-test/container/logstash/pipeline/filter.conf"
+    OutputFilePath   = "/home/user/projects/logstash-filter-test/container/logstash/io/output.json"
 )
 
 type logstashPipelineInput struct {
@@ -31,11 +39,35 @@ type logstashPipelineOutput struct {
 }
 
 func lintFitler(filter string) string {
-    return "lintFitler"
+    return "lintFilter"
 }
 
 func processMessage(message string, filter string) string {
-    return "processMessage"
+    err := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
+    if err != nil {
+        return "Cannot write filter: " + err.Error()
+    }
+
+    time.Sleep(10 * 1000 * time.Millisecond)
+
+    err = ioutil.WriteFile(InputFilePath, []byte(message), 0644)
+    if err != nil {
+        return "Cannot write message: " + err.Error()
+    }
+
+    time.Sleep(10 * 1000 * time.Millisecond)
+
+    output, err := ioutil.ReadFile(OutputFilePath)
+    if err != nil {
+        return "Cannot read output: " + err.Error()
+    }
+    
+    ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n"), 0644)
+    ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
+    time.Sleep(5 * 1000 * time.Millisecond)
+    os.Remove(OutputFilePath)
+
+    return string(output)
 }
 
 func compareOutput(expected string, actual string) string {
@@ -154,6 +186,10 @@ func main() {
     http.HandleFunc("/", mainHandler)
     http.HandleFunc("/ping", pingHandler)
     http.HandleFunc("/upload", logstashPipelineHandler)
+
+    os.Remove(InputFilePath)
+    os.Remove(OutputFilePath)
+    ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
 
     log.Fatal(http.ListenAndServe(":8081", nil))
 }

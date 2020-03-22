@@ -1,0 +1,22 @@
+version: '3.2'
+
+services:
+  logstash-tester:
+    build:
+      context: ./
+    volumes:
+      - type: bind
+        source: ./logstash/config/pipelines.yml
+        target: /usr/share/logstash/config/pipelines.yml
+        
+      - type: bind
+        source: ./logstash/config/logstash.yml
+        target: /usr/share/logstash/config/logstash.yml
+        
+      - type: bind
+        source: ./logstash/pipeline/
+        target: /usr/share/logstash/pipeline
+
+      - type: bind
+        source: ./logstash/io
+        target: /usr/share/logstash/io
