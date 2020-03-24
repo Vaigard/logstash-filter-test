@@ -61,8 +61,6 @@ func ReadConfig(filename string) (string, string, string) {
     defer file.Close()
     
     reader := bufio.NewReader(file)
-    
-    //var config map[string]string
 
     for {
         line, err := reader.ReadString('\n')
