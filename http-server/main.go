@@ -9,6 +9,8 @@ import (
     "bytes"
     "time"
     "os"
+    "bufio"
+    "strings"
 )
 
 const (
@@ -19,11 +21,9 @@ const (
     RequestTypeFilter                  = 3
 )
 
-const (
-    InputFilePath    = "/home/user/projects/logstash-filter-test/container/logstash/io/input.txt"
-    FilterFilePath   = "/home/user/projects/logstash-filter-test/container/logstash/pipeline/filter.conf"
-    OutputFilePath   = "/home/user/projects/logstash-filter-test/container/logstash/io/output.json"
-)
+var InputFilePath string
+var FilterFilePath string
+var OutputFilePath string
 
 type logstashPipelineInput struct {
     Message     string
@@ -37,6 +37,60 @@ type logstashPipelineOutput struct {
     Lint        string      `json:"lint"`
     Status      string      `json:"status"`
 }
+
+func ReadConfig(filename string) (string, string, string) {
+    // default logstash docker paths
+    inputFilePath  := "/usr/share/logstash/input.txt"
+    filterFilePath := "/usr/share/logstash/pipeline/filter.conf"
+    outputFilePath := "/usr/share/logstash/output.json"
+
+    config := map[string]string{
+        "input": inputFilePath,
+        "filter": filterFilePath,
+        "output": outputFilePath,
+    }
+
+    if len(filename) == 0 {
+        return inputFilePath, filterFilePath, outputFilePath
+    }
+
+    file, err := os.Open(filename)
+    if err != nil {
+        return inputFilePath, filterFilePath, outputFilePath
+    }
+    defer file.Close()
+    
+    reader := bufio.NewReader(file)
+    
+    //var config map[string]string
+
+    for {
+        line, err := reader.ReadString('\n')
+        
+        if equal := strings.Index(line, "="); equal >= 0 {
+            if key := strings.TrimSpace(line[:equal]); len(key) > 0 {
+                value := ""
+                if len(line) > equal {
+                    value = strings.TrimSpace(line[equal+1:])
+                }
+
+                config[key] = value
+            }
+        }
+        if err == io.EOF {
+            break
+        }
+        if err != nil {
+            return inputFilePath, filterFilePath, outputFilePath
+        }
+    }
+
+    inputFilePath = config["input"]
+    filterFilePath = config["filter"]
+    outputFilePath = config["output"]
+
+    return inputFilePath, filterFilePath, outputFilePath
+ }
 
 func lintFitler(filter string) string {
     return "lintFilter"
@@ -187,9 +241,17 @@ func main() {
     http.HandleFunc("/ping", pingHandler)
     http.HandleFunc("/upload", logstashPipelineHandler)
 
+    configFilePath := os.Args[1]
+
+    if _, err := os.Stat(configFilePath); err == nil {
+        InputFilePath, FilterFilePath, OutputFilePath = ReadConfig(configFilePath)
+        log.Printf("Loaded config file %s\n", configFilePath)
+    } else {
+        log.Printf("Cannot read config file %s, using default configuration\n", configFilePath)
+    }
+
     os.Remove(InputFilePath)
     os.Remove(OutputFilePath)
-    ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
 
     log.Fatal(http.ListenAndServe(":8081", nil))
 }
