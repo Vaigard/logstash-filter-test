@@ -28,12 +28,13 @@ RUN \
   yum clean all && \
   easy_install supervisor
 
-USER logstash
 COPY ./container/supervisord.conf /etc/supervisor/supervisord.conf
-
 COPY ./container/config/logstash.yml /usr/share/logstash/config/logstash.yml
 COPY ./container/config/pipelines.yml /usr/share/logstash/config/pipelines.yml
 COPY ./container/pipeline/filter.conf /usr/share/logstash/pipeline/filter.conf
 COPY ./container/pipeline/io.conf /usr/share/logstash/pipeline/io.conf
+
+RUN chown logstash:root /usr/share/logstash/server
+RUN chown logstash:root /usr/share/logstash/pipeline/filter.conf
 
 ENTRYPOINT ["/usr/bin/supervisord"]

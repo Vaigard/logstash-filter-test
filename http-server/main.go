@@ -21,6 +21,7 @@ const (
     RequestTypeFilter                  = 3
 )
 
+ServerLogPath := "server.log"
 var InputFilePath string
 var FilterFilePath string
 var OutputFilePath string
@@ -38,17 +39,18 @@ type logstashPipelineOutput struct {
     Status      string      `json:"status"`
 }
 
-func ReadConfig(filename string) (string, string, string) {
+func checkConfig(args []string) (string, string, string) {
     // default logstash docker paths
     inputFilePath  := "/usr/share/logstash/input.txt"
     filterFilePath := "/usr/share/logstash/pipeline/filter.conf"
     outputFilePath := "/usr/share/logstash/output.json"
 
-    config := map[string]string{
-        "input": inputFilePath,
-        "filter": filterFilePath,
-        "output": outputFilePath,
+    if len(args) == 1 {
+        log.Print("No user config, using default configuration\n")
+        return inputFilePath, filterFilePath, outputFilePath
     }
+
+    filename := args[1]
 
     if len(filename) == 0 {
         return inputFilePath, filterFilePath, outputFilePath
@@ -56,11 +58,18 @@ func ReadConfig(filename string) (string, string, string) {
 
     file, err := os.Open(filename)
     if err != nil {
+        log.Printf("Cannot read config file %s, using default configuration\n", filename)
         return inputFilePath, filterFilePath, outputFilePath
     }
     defer file.Close()
     
     reader := bufio.NewReader(file)
+
+    config := map[string]string{
+        "input": inputFilePath,
+        "filter": filterFilePath,
+        "output": outputFilePath,
+    }
 
     for {
         line, err := reader.ReadString('\n')
@@ -87,6 +96,7 @@ func ReadConfig(filename string) (string, string, string) {
     filterFilePath = config["filter"]
     outputFilePath = config["output"]
 
+    log.Printf("Loaded config file %s\n", filename)
     return inputFilePath, filterFilePath, outputFilePath
  }
 
@@ -107,6 +117,8 @@ func processMessage(message string, filter string) string {
         return "Cannot write message: " + err.Error()
     }
 
+    defer ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n\n"), 0644)
+
     time.Sleep(10 * 1000 * time.Millisecond)
 
     output, err := ioutil.ReadFile(OutputFilePath)
@@ -114,7 +126,6 @@ func processMessage(message string, filter string) string {
         return "Cannot read output: " + err.Error()
     }
     
-    ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n"), 0644)
     ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
     time.Sleep(5 * 1000 * time.Millisecond)
     os.Remove(OutputFilePath)
@@ -239,14 +250,12 @@ func main() {
     http.HandleFunc("/ping", pingHandler)
     http.HandleFunc("/upload", logstashPipelineHandler)
 
-    configFilePath := os.Args[1]
+    logFile, _ := os.OpenFile(ServerLogPath, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+    defer logFile.Close()
 
-    if _, err := os.Stat(configFilePath); err == nil {
-        InputFilePath, FilterFilePath, OutputFilePath = ReadConfig(configFilePath)
-        log.Printf("Loaded config file %s\n", configFilePath)
-    } else {
-        log.Printf("Cannot read config file %s, using default configuration\n", configFilePath)
-    }
+    log.SetOutput(logFile)
+
+    InputFilePath, FilterFilePath, OutputFilePath = checkConfig(os.Args)    
 
     os.Remove(InputFilePath)
     os.Remove(OutputFilePath)
