@@ -49,25 +49,31 @@ func processMessage(message string, filter string) string {
         return "Cannot write filter: " + err.Error()
     }
 
+    defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
+
     time.Sleep(10 * 1000 * time.Millisecond)
 
     err = ioutil.WriteFile(InputFilePath, []byte(message), 0644)
     if err != nil {
         return "Cannot write message: " + err.Error()
     }
-
     defer ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n\n"), 0644)
 
-    time.Sleep(10 * 1000 * time.Millisecond)
+    defer os.Remove(OutputFilePath)
 
-    output, err := ioutil.ReadFile(OutputFilePath)
+    var output string
+
+    for try := 0; try < 10; try++ {
+        output, err = ioutil.ReadFile(OutputFilePath)
+        if err == nil {
+            break
+        }
+        time.Sleep(1 * 1000 * time.Millisecond)
+    }
+
     if err != nil {
         return "Cannot read output: " + err.Error()
-    }
-    
-    ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
-    time.Sleep(5 * 1000 * time.Millisecond)
-    os.Remove(OutputFilePath)
+    }    
 
     return string(output)
 }
