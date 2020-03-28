@@ -51,13 +51,14 @@ func processMessage(message string, filter string) string {
 
     defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
 
-    time.Sleep(10 * 1000 * time.Millisecond)
+    // wait for restart pipeline (autoreload - 2 seconds)
+    time.Sleep(3 * 1000 * time.Millisecond)
 
-    err = ioutil.WriteFile(InputFilePath, []byte(message), 0644)
-    if err != nil {
-        return "Cannot write message: " + err.Error()
-    }
-    defer ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n\n"), 0644)
+    // err = ioutil.WriteFile(InputFilePath, []byte(message), 0644)
+    // if err != nil {
+    //     return "Cannot write message: " + err.Error()
+    // }
+    // defer ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n\n"), 0644)
 
     defer os.Remove(OutputFilePath)
 
