@@ -22,9 +22,9 @@ const (
 )
 
 ServerLogPath := "server.log"
-var InputFilePath string
-var FilterFilePath string
-var OutputFilePath string
+InputFilePath  := "/usr/share/logstash/input.txt"
+FilterFilePath := "/usr/share/logstash/pipeline/filter.conf"
+OutputFilePath := "/usr/share/logstash/output.json"
 
 type logstashPipelineInput struct {
     Message     string
@@ -38,67 +38,6 @@ type logstashPipelineOutput struct {
     Lint        string      `json:"lint"`
     Status      string      `json:"status"`
 }
-
-func checkConfig(args []string) (string, string, string) {
-    // default logstash docker paths
-    inputFilePath  := "/usr/share/logstash/input.txt"
-    filterFilePath := "/usr/share/logstash/pipeline/filter.conf"
-    outputFilePath := "/usr/share/logstash/output.json"
-
-    if len(args) == 1 {
-        log.Print("No user config, using default configuration\n")
-        return inputFilePath, filterFilePath, outputFilePath
-    }
-
-    filename := args[1]
-
-    if len(filename) == 0 {
-        return inputFilePath, filterFilePath, outputFilePath
-    }
-
-    file, err := os.Open(filename)
-    if err != nil {
-        log.Printf("Cannot read config file %s, using default configuration\n", filename)
-        return inputFilePath, filterFilePath, outputFilePath
-    }
-    defer file.Close()
-    
-    reader := bufio.NewReader(file)
-
-    config := map[string]string{
-        "input": inputFilePath,
-        "filter": filterFilePath,
-        "output": outputFilePath,
-    }
-
-    for {
-        line, err := reader.ReadString('\n')
-        
-        if equal := strings.Index(line, "="); equal >= 0 {
-            if key := strings.TrimSpace(line[:equal]); len(key) > 0 {
-                value := ""
-                if len(line) > equal {
-                    value = strings.TrimSpace(line[equal+1:])
-                }
-
-                config[key] = value
-            }
-        }
-        if err == io.EOF {
-            break
-        }
-        if err != nil {
-            return inputFilePath, filterFilePath, outputFilePath
-        }
-    }
-
-    inputFilePath = config["input"]
-    filterFilePath = config["filter"]
-    outputFilePath = config["output"]
-
-    log.Printf("Loaded config file %s\n", filename)
-    return inputFilePath, filterFilePath, outputFilePath
- }
 
 func lintFitler(filter string) string {
     return "lintFilter"
@@ -254,8 +193,6 @@ func main() {
     defer logFile.Close()
 
     log.SetOutput(logFile)
-
-    InputFilePath, FilterFilePath, OutputFilePath = checkConfig(os.Args)    
 
     os.Remove(InputFilePath)
     os.Remove(OutputFilePath)
