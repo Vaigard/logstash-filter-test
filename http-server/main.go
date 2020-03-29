@@ -4,13 +4,12 @@ import (
     "io"
     "io/ioutil"
     "net/http"
+    "net"
     "log"
     "encoding/json"
     "bytes"
     "time"
     "os"
-    "bufio"
-    "strings"
 )
 
 const (
@@ -21,10 +20,9 @@ const (
     RequestTypeFilter                  = 3
 )
 
-ServerLogPath := "server.log"
-InputFilePath  := "/usr/share/logstash/input.txt"
-FilterFilePath := "/usr/share/logstash/pipeline/filter.conf"
-OutputFilePath := "/usr/share/logstash/output.json"
+var ServerLogPath = "server.log"
+var FilterFilePath = "/usr/share/logstash/pipeline/filter.conf"
+var OutputFilePath = "/usr/share/logstash/output.json"
 
 type logstashPipelineInput struct {
     Message     string
@@ -51,18 +49,32 @@ func processMessage(message string, filter string) string {
 
     defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
 
-    // wait for restart pipeline (autoreload - 2 seconds)
+    // wait for restart pipeline (autoreload in 2 seconds)
     time.Sleep(3 * 1000 * time.Millisecond)
 
-    // err = ioutil.WriteFile(InputFilePath, []byte(message), 0644)
-    // if err != nil {
-    //     return "Cannot write message: " + err.Error()
-    // }
-    // defer ioutil.WriteFile(InputFilePath, []byte("~~~~~~~~~~~~~~~\n\n"), 0644)
+    logstashInputAddress := net.UDPAddr{IP: net.IP{127, 0, 0, 1}, Port: 8082}
+
+    for try := 0; try < 3; try++ {
+        connection, err := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
+        if err != nil {
+            time.Sleep(1 * 1000 * time.Millisecond)
+            continue
+        }     
+        
+        _, err = connection.WriteTo([]byte(message), &logstashInputAddress)
+        if err == nil {
+            break
+        }
+        time.Sleep(1 * 1000 * time.Millisecond)
+    }
+
+    if err != nil {
+        return "Cannot send message to Logstash: " + err.Error()
+    }
 
     defer os.Remove(OutputFilePath)
 
-    var output string
+    var output []byte
 
     for try := 0; try < 10; try++ {
         output, err = ioutil.ReadFile(OutputFilePath)
@@ -201,7 +213,6 @@ func main() {
 
     log.SetOutput(logFile)
 
-    os.Remove(InputFilePath)
     os.Remove(OutputFilePath)
 
     log.Fatal(http.ListenAndServe(":8081", nil))
