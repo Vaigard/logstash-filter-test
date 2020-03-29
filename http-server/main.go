@@ -42,9 +42,12 @@ func lintFitler(filter string) string {
 }
 
 func processMessage(message string, filter string) string {
-    err := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
-    if err != nil {
-        return "Cannot write filter: " + err.Error()
+    log.Printf("Process new message")
+    error := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
+    if error != nil {
+        errorMessage := "Cannot write filter: " + error.Error()
+        log.Print(errorMessage)
+        return errorMessage
     }
 
     defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
@@ -55,21 +58,23 @@ func processMessage(message string, filter string) string {
     logstashInputAddress := net.UDPAddr{IP: net.IP{127, 0, 0, 1}, Port: 8082}
 
     for try := 0; try < 3; try++ {
-        connection, err := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
-        if err != nil {
+        connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
+        if error != nil {
             time.Sleep(1 * 1000 * time.Millisecond)
             continue
         }     
         
-        _, err = connection.WriteTo([]byte(message), &logstashInputAddress)
-        if err == nil {
+        _, error = connection.WriteTo([]byte(message), &logstashInputAddress)
+        if error == nil {
             break
         }
         time.Sleep(1 * 1000 * time.Millisecond)
     }
 
-    if err != nil {
-        return "Cannot send message to Logstash: " + err.Error()
+    if error != nil {
+        errorMessage := "Cannot send message to Logstash: " + err.Error()
+        log.Print(errorMessage)
+        return errorMessage
     }
 
     defer os.Remove(OutputFilePath)
@@ -77,15 +82,17 @@ func processMessage(message string, filter string) string {
     var output []byte
 
     for try := 0; try < 10; try++ {
-        output, err = ioutil.ReadFile(OutputFilePath)
+        output, error = ioutil.ReadFile(OutputFilePath)
         if err == nil {
             break
         }
         time.Sleep(1 * 1000 * time.Millisecond)
     }
 
-    if err != nil {
-        return "Cannot read output: " + err.Error()
+    if error != nil {
+        errorMessage := "Cannot read output: " + error.Error()
+        log.Print(errorMessage)
+        return errorMessage
     }    
 
     return string(output)
@@ -113,6 +120,7 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
     pipelineInput := logstashPipelineInput{}
     multiPartReader, error := request.MultipartReader()
     if error != nil {
+        log.Printf("Parse request: %s", error.Error())
         return pipelineInput, RequestTypeInvalid
     }
 
@@ -126,6 +134,7 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
 
         // Any other error
         if error != nil {
+            log.Printf("Get new request part: %s", error.Error())
             return pipelineInput, RequestTypeInvalid
         }
 
@@ -166,6 +175,7 @@ func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
     if error == nil {
         io.WriteString(responseWriter, string(readmeContent))
     } else {
+        log.Printf("Cannot read Readme file: %s", error.Error())
         io.WriteString(responseWriter, "Logstash filters tester's server\n")
     }
 }
@@ -212,6 +222,8 @@ func main() {
     defer logFile.Close()
 
     log.SetOutput(logFile)
+
+    log.Print("Init log")
 
     os.Remove(OutputFilePath)
 
