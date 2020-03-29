@@ -20,6 +20,7 @@ const (
     RequestTypeFilter                  = 3
 )
 
+var LogstashInputPort = 8082
 var ServerLogPath = "server.log"
 var FilterFilePath = "/usr/share/logstash/pipeline/filter.conf"
 var OutputFilePath = "/usr/share/logstash/output.json"
@@ -55,8 +56,6 @@ func processMessage(message string, filter string) string {
     // wait for restart pipeline (autoreload in 2 seconds)
     time.Sleep(3 * 1000 * time.Millisecond)
 
-    logstashInputAddress := net.UDPAddr{Port: 8082}
-
     for try := 0; try < 3; try++ {
         connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
         if error != nil {
@@ -64,7 +63,7 @@ func processMessage(message string, filter string) string {
         }
         defer connection.Close()
         log.Print(message)
-        _, error = connection.WriteToUDP([]byte(message), &logstashInputAddress)
+        _, error = connection.WriteToUDP([]byte(message), &net.UDPAddr{Port: LogstashInputPort})
         if error == nil {
             break
         }
