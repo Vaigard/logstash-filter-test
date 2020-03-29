@@ -1,4 +1,4 @@
 config.reload.automatic: true
 config.reload.interval: 10
-path.logs: "/usr/share/logstash/logs"
+
 http.host: "0.0.0.0"
