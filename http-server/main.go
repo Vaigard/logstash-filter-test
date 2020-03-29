@@ -42,7 +42,7 @@ func lintFitler(filter string) string {
 }
 
 func processMessage(message string, filter string) string {
-    log.Printf("Process new message")
+    log.Printf("Process new filter and message")
     error := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
     if error != nil {
         errorMessage := "Cannot write filter: " + error.Error()
@@ -55,16 +55,16 @@ func processMessage(message string, filter string) string {
     // wait for restart pipeline (autoreload in 2 seconds)
     time.Sleep(3 * 1000 * time.Millisecond)
 
-    logstashInputAddress := net.UDPAddr{IP: net.IP{127, 0, 0, 1}, Port: 8082}
+    logstashInputAddress := net.UDPAddr{Port: 8082}
 
     for try := 0; try < 3; try++ {
         connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
         if error != nil {
-            time.Sleep(1 * 1000 * time.Millisecond)
             continue
-        }     
-        
-        _, error = connection.WriteTo([]byte(message), &logstashInputAddress)
+        }
+        defer connection.Close()
+        log.Print(message)
+        _, error = connection.WriteToUDP([]byte(message), &logstashInputAddress)
         if error == nil {
             break
         }
@@ -72,7 +72,7 @@ func processMessage(message string, filter string) string {
     }
 
     if error != nil {
-        errorMessage := "Cannot send message to Logstash: " + err.Error()
+        errorMessage := "Cannot send message to Logstash: " + error.Error()
         log.Print(errorMessage)
         return errorMessage
     }
@@ -83,7 +83,7 @@ func processMessage(message string, filter string) string {
 
     for try := 0; try < 10; try++ {
         output, error = ioutil.ReadFile(OutputFilePath)
-        if err == nil {
+        if error == nil {
             break
         }
         time.Sleep(1 * 1000 * time.Millisecond)
@@ -189,6 +189,7 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // "/upload"
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
+    log.Print("Got new request")
     pipelineOutput := logstashPipelineOutput{}
 
     pipelineInput, requestType := getPipelineInput(request)
