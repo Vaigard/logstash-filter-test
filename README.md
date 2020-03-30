@@ -7,7 +7,7 @@ Pages:
 - /ping
 - /upload
 
-Example of upload request:
+Example of using:
 ```
-curl -i --request POST -F "filter=@/home/user/filter.conf" -F 'message="testhost testtext"' -F 'expected="{\"name\":\"hostname\",\"message\":\"testtext\"}"' 127.0.0.1:8081/upload
+./client.sh -s 127.0.0.1:8081 -f ./filter.txt -m ./message.txt
 ```
