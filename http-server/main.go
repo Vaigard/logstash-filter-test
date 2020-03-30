@@ -54,18 +54,21 @@ func processMessage(message string, filter string) string {
     defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
 
     // wait for restart pipeline (autoreload in 2 seconds)
-    time.Sleep(3 * 1000 * time.Millisecond)
+    time.Sleep(5 * 1000 * time.Millisecond)
 
     for try := 0; try < 3; try++ {
         connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
         if error != nil {
+            log.Print(error.Error())
             continue
         }
         defer connection.Close()
         log.Print(message)
-        _, error = connection.WriteToUDP([]byte(message), &net.UDPAddr{Port: LogstashInputPort})
+        _, error = connection.WriteToUDP([]byte(message), &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: LogstashInputPort})
         if error == nil {
             break
+        } else {
+            log.Print(error.Error())
         }
         time.Sleep(1 * 1000 * time.Millisecond)
     }
@@ -76,16 +79,20 @@ func processMessage(message string, filter string) string {
         return errorMessage
     }
 
+    time.Sleep(5 * 1000 * time.Millisecond)
+
     defer os.Remove(OutputFilePath)
 
     var output []byte
 
-    for try := 0; try < 10; try++ {
+    for try := 0; try < 5; try++ {
         output, error = ioutil.ReadFile(OutputFilePath)
         if error == nil {
             break
+        } else {
+            log.Print(error.Error())
         }
-        time.Sleep(1 * 1000 * time.Millisecond)
+        time.Sleep(3 * 1000 * time.Millisecond)
     }
 
     if error != nil {

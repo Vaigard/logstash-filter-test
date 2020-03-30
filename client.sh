@@ -42,4 +42,4 @@ fi
 
 echo "Start testing..."
 
-curl -i --request POST -F "filter=@$filter_file" -F "message=@$message_file" "$server"/upload && echo
+curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" "$server"/upload && echo
