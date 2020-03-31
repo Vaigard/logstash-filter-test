@@ -10,6 +10,7 @@ import (
     "bytes"
     "time"
     "os"
+    "strings"
 )
 
 const (
@@ -38,88 +39,66 @@ type logstashPipelineOutput struct {
     Status      string      `json:"status"`
 }
 
-func lintFitler(filter string) string {
-    return "lintFilter"
+func main() {
+    http.HandleFunc("/", mainHandler)
+    http.HandleFunc("/ping", pingHandler)
+    http.HandleFunc("/upload", logstashPipelineHandler)
+
+    logFile, _ := os.OpenFile(ServerLogPath, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+    defer logFile.Close()
+
+    log.SetOutput(logFile)
+    log.Print("Init log")
+
+    os.Remove(OutputFilePath)
+
+    log.Fatal(http.ListenAndServe(":8081", nil))
 }
 
-func processMessage(message string, filter string) string {
-    log.Printf("Process new filter and message")
-    error := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
-    if error != nil {
-        errorMessage := "Cannot write filter: " + error.Error()
-        log.Print(errorMessage)
-        return errorMessage
+// "/"
+// Main page returns documentation about server.
+func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
+    readmeContent, error := ioutil.ReadFile("README.md")
+    if error == nil {
+        io.WriteString(responseWriter, string(readmeContent))
+    } else {
+        log.Printf("Cannot read Readme file: %s", error.Error())
+        io.WriteString(responseWriter, "Logstash filters tester's server\n")
     }
-
-    defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
-
-    // wait for restart pipeline (autoreload in 2 seconds)
-    time.Sleep(5 * 1000 * time.Millisecond)
-
-    for try := 0; try < 3; try++ {
-        connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
-        if error != nil {
-            log.Print(error.Error())
-            continue
-        }
-        defer connection.Close()
-        log.Print(message)
-        _, error = connection.WriteToUDP([]byte(message), &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: LogstashInputPort})
-        if error == nil {
-            break
-        } else {
-            log.Print(error.Error())
-        }
-        time.Sleep(1 * 1000 * time.Millisecond)
-    }
-
-    if error != nil {
-        errorMessage := "Cannot send message to Logstash: " + error.Error()
-        log.Print(errorMessage)
-        return errorMessage
-    }
-
-    time.Sleep(5 * 1000 * time.Millisecond)
-
-    defer os.Remove(OutputFilePath)
-
-    var output []byte
-
-    for try := 0; try < 5; try++ {
-        output, error = ioutil.ReadFile(OutputFilePath)
-        if error == nil {
-            break
-        } else {
-            log.Print(error.Error())
-        }
-        time.Sleep(3 * 1000 * time.Millisecond)
-    }
-
-    if error != nil {
-        errorMessage := "Cannot read output: " + error.Error()
-        log.Print(errorMessage)
-        return errorMessage
-    }    
-
-    return string(output)
 }
 
-func compareOutput(expected string, actual string) string {
-    return "compareOutput"
+// "/ping"
+// Allow simply check if server works.
+func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
+    io.WriteString(responseWriter, "pong")
 }
 
-func testPipeline(pipelineInput logstashPipelineInput, requestType int) logstashPipelineOutput {
-    if requestType == RequestTypeFilter {
-        return logstashPipelineOutput{Lint: lintFitler(pipelineInput.Filter)}
+// "/upload"
+// Gets the logstash filter and testing data.
+func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
+    log.Print("Got new request")
+    pipelineOutput := logstashPipelineOutput{}
+
+    pipelineInput, requestType := getPipelineInput(request)
+
+    switch requestType {
+    case RequestTypeInvalid:
+        pipelineOutput = logstashPipelineOutput{Status: "Invalid request"}
+    case RequestTypeEmptyFilter:
+        pipelineOutput = logstashPipelineOutput{Status: "Empty filter field"}
+    default:
+        pipelineOutput = testPipeline(pipelineInput, requestType)
+        pipelineOutput.Status = "OK"
     }
 
-    pipelineOutput := logstashPipelineOutput{Output: processMessage(pipelineInput.Message, pipelineInput.Filter)}
-
-    if requestType == RequestTypeMessageFilterExpected {
-        pipelineOutput.Diff = compareOutput(pipelineInput.Expected, pipelineOutput.Output)
+    responseJson, marshalError := json.Marshal(pipelineOutput)
+    if marshalError != nil {
+        http.Error(responseWriter, marshalError.Error(), http.StatusInternalServerError)
+        return
     }
 
-    return pipelineOutput
+    responseWriter.Header().Set("Content-Type", "application/json")
+    responseWriter.Write(responseJson)
 }
 
 func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
@@ -174,65 +153,102 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
     return pipelineInput, RequestTypeFilter
 }
 
-// "/"
-// Main page returns documentation about server.
-func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    readmeContent, error := ioutil.ReadFile("README.md")
-    if error == nil {
-        io.WriteString(responseWriter, string(readmeContent))
-    } else {
-        log.Printf("Cannot read Readme file: %s", error.Error())
-        io.WriteString(responseWriter, "Logstash filters tester's server\n")
-    }
-}
-
-// "/ping"
-// Allow simply check if server works.
-func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    io.WriteString(responseWriter, "pong")
-}
-
-// "/upload"
-// Gets the logstash filter and testing data.
-func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    log.Print("Got new request")
-    pipelineOutput := logstashPipelineOutput{}
-
-    pipelineInput, requestType := getPipelineInput(request)
-
-    switch requestType {
-    case RequestTypeInvalid:
-        pipelineOutput = logstashPipelineOutput{Status: "Invalid request"}
-    case RequestTypeEmptyFilter:
-        pipelineOutput = logstashPipelineOutput{Status: "Empty filter field"}
-    default:
-        pipelineOutput = testPipeline(pipelineInput, requestType)
-        pipelineOutput.Status = "OK"
+func testPipeline(pipelineInput logstashPipelineInput, requestType int) logstashPipelineOutput {
+    if requestType == RequestTypeFilter {
+        return logstashPipelineOutput{Lint: lintFitler(pipelineInput.Filter)}
     }
 
-    responseJson, marshalError := json.Marshal(pipelineOutput)
-    if marshalError != nil {
-        http.Error(responseWriter, marshalError.Error(), http.StatusInternalServerError)
-        return
+    pipelineOutput := logstashPipelineOutput{Output: processMessage(pipelineInput.Message, pipelineInput.Filter)}
+
+    if requestType == RequestTypeMessageFilterExpected {
+        pipelineOutput.Diff = compareOutput(pipelineInput.Expected, pipelineOutput.Output)
     }
 
-    responseWriter.Header().Set("Content-Type", "application/json")
-    responseWriter.Write(responseJson)
+    return pipelineOutput
 }
 
-func main() {
-    http.HandleFunc("/", mainHandler)
-    http.HandleFunc("/ping", pingHandler)
-    http.HandleFunc("/upload", logstashPipelineHandler)
+func lintFitler(filter string) string {
+    return "lintFilter"
+}
 
-    logFile, _ := os.OpenFile(ServerLogPath, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
-    defer logFile.Close()
+func processMessage(message string, filter string) string {
+    log.Printf("Process new filter and message")
+    error := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
+    if error != nil {
+        errorMessage := "Cannot write filter: " + error.Error()
+        log.Print(errorMessage)
+        return errorMessage
+    }
 
-    log.SetOutput(logFile)
+    defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
 
-    log.Print("Init log")
+    // wait for restart pipeline (autoreload in 2 seconds)
+    time.Sleep(5 * 1000 * time.Millisecond)
 
-    os.Remove(OutputFilePath)
+    log.Print(message)
+    messages := strings.Split(message, "\\n")
 
-    log.Fatal(http.ListenAndServe(":8081", nil))
+    connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
+    if error != nil {
+        errorMessage := "Cannot connect to port 1234/udp: " + error.Error()
+        log.Print(errorMessage)
+        return errorMessage
+    }
+    defer connection.Close()
+
+    for try := 0; try < 3; try++ {
+        error = sendMessagesToLogstash(connection, messages)
+
+        if error == nil {
+            break
+        } else {
+            log.Printf("Try to send message to Logstash: %s", error.Error())
+        }
+        time.Sleep(1 * 1000 * time.Millisecond)
+    }
+
+    if error != nil {
+        errorMessage := "Cannot send message to Logstash: " + error.Error()
+        log.Print(errorMessage)
+        return errorMessage
+    }
+
+    time.Sleep(5 * 1000 * time.Millisecond)
+
+    defer os.Remove(OutputFilePath)
+
+    var output []byte
+
+    for try := 0; try < 5; try++ {
+        output, error = ioutil.ReadFile(OutputFilePath)
+        if error == nil {
+            break
+        } else {
+            log.Print(error.Error())
+        }
+        time.Sleep(3 * 1000 * time.Millisecond)
+    }
+
+    if error != nil {
+        errorMessage := "Cannot read output: " + error.Error()
+        log.Print(errorMessage)
+        return errorMessage
+    }    
+
+    return string(output)
+}
+
+func compareOutput(expected string, actual string) string {
+    return "compareOutput"
+}
+
+func sendMessagesToLogstash(connection* net.UDPConn, messages []string) error {
+    for _, message := range messages {
+        _, error := connection.WriteToUDP([]byte(message), &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: LogstashInputPort})
+        if error != nil {
+            return error
+        }
+    }
+
+    return nil
 }
