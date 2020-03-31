@@ -22,7 +22,9 @@ const (
 )
 
 var LogstashInputPort = 8082
+var ServerPort = ":8081"
 var ServerLogPath = "server.log"
+var ReadmeFile = "README.md"
 var FilterFilePath = "/usr/share/logstash/pipeline/filter.conf"
 var OutputFilePath = "/usr/share/logstash/output.json"
 
@@ -34,8 +36,8 @@ type logstashPipelineInput struct {
 
 type logstashPipelineOutput struct {
     Output      string      `json:"output"`
-    Diff        string      `json:"diff"`
-    Lint        string      `json:"lint"`
+    // Diff        string      `json:"diff"`
+    // Lint        string      `json:"lint"`
     Status      string      `json:"status"`
 }
 
@@ -48,19 +50,20 @@ func main() {
     defer logFile.Close()
 
     log.SetOutput(logFile)
-    log.Print("Init log")
+    log.SetFlags(log.LstdFlags | log.Lshortfile)
+    log.Print("Start server--------------")
 
     os.Remove(OutputFilePath)
 
-    log.Fatal(http.ListenAndServe(":8081", nil))
+    log.Fatal(http.ListenAndServe(ServerPort, nil))
 }
 
 // "/"
 // Main page returns documentation about server.
 func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    readmeContent, error := ioutil.ReadFile("README.md")
+    documentation, error := ioutil.ReadFile(ReadmeFile)
     if error == nil {
-        io.WriteString(responseWriter, string(readmeContent))
+        io.WriteString(responseWriter, string(documentation))
     } else {
         log.Printf("Cannot read Readme file: %s", error.Error())
         io.WriteString(responseWriter, "Logstash filters tester's server\n")
@@ -154,24 +157,24 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
 }
 
 func testPipeline(pipelineInput logstashPipelineInput, requestType int) logstashPipelineOutput {
-    if requestType == RequestTypeFilter {
-        return logstashPipelineOutput{Lint: lintFitler(pipelineInput.Filter)}
-    }
+    // if requestType == RequestTypeFilter {
+    //     return logstashPipelineOutput{Lint: lintFilter(pipelineInput.Filter)}
+    // }
 
-    pipelineOutput := logstashPipelineOutput{Output: processMessage(pipelineInput.Message, pipelineInput.Filter)}
+    pipelineOutput := logstashPipelineOutput{Output: processPipeline(pipelineInput.Message, pipelineInput.Filter)}
 
-    if requestType == RequestTypeMessageFilterExpected {
-        pipelineOutput.Diff = compareOutput(pipelineInput.Expected, pipelineOutput.Output)
-    }
+    // if requestType == RequestTypeMessageFilterExpected {
+    //     pipelineOutput.Diff = compareOutput(pipelineInput.Expected, pipelineOutput.Output)
+    // }
 
     return pipelineOutput
 }
 
-func lintFitler(filter string) string {
+func lintFilter(filter string) string {
     return "lintFilter"
 }
 
-func processMessage(message string, filter string) string {
+func processPipeline(message string, filter string) string {
     log.Printf("Process new filter and message")
     error := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
     if error != nil {
@@ -185,14 +188,35 @@ func processMessage(message string, filter string) string {
     // wait for restart pipeline (autoreload in 2 seconds)
     time.Sleep(5 * 1000 * time.Millisecond)
 
-    log.Print(message)
-    messages := strings.Split(message, "\\n")
+    error = processMessage(message)    
+
+    if error != nil {
+        errorMessage := "Cannot send message to Logstash: " + error.Error()
+        log.Print(errorMessage)
+        return errorMessage
+    }
+
+    time.Sleep(5 * 1000 * time.Millisecond)
+
+    defer os.Remove(OutputFilePath)
+
+    output := getLogstashOutput()     
+
+    return output
+}
+
+func compareOutput(expected string, actual string) string {
+    return "compareOutput"
+}
+
+func processMessage(message string) error {
+    messages := strings.Split(message, "\n")
 
     connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
     if error != nil {
         errorMessage := "Cannot connect to port 1234/udp: " + error.Error()
         log.Print(errorMessage)
-        return errorMessage
+        return error
     }
     defer connection.Close()
 
@@ -207,17 +231,12 @@ func processMessage(message string, filter string) string {
         time.Sleep(1 * 1000 * time.Millisecond)
     }
 
-    if error != nil {
-        errorMessage := "Cannot send message to Logstash: " + error.Error()
-        log.Print(errorMessage)
-        return errorMessage
-    }
+    return error
+} 
 
-    time.Sleep(5 * 1000 * time.Millisecond)
-
-    defer os.Remove(OutputFilePath)
-
+func getLogstashOutput() string {
     var output []byte
+    var error error
 
     for try := 0; try < 5; try++ {
         output, error = ioutil.ReadFile(OutputFilePath)
@@ -233,18 +252,16 @@ func processMessage(message string, filter string) string {
         errorMessage := "Cannot read output: " + error.Error()
         log.Print(errorMessage)
         return errorMessage
-    }    
+    }
 
     return string(output)
 }
 
-func compareOutput(expected string, actual string) string {
-    return "compareOutput"
-}
-
 func sendMessagesToLogstash(connection* net.UDPConn, messages []string) error {
+    logstashAddress := net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: LogstashInputPort}
     for _, message := range messages {
-        _, error := connection.WriteToUDP([]byte(message), &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: LogstashInputPort})
+        log.Printf("Message: %s", message)
+        _, error := connection.WriteToUDP([]byte(message), &logstashAddress)
         if error != nil {
             return error
         }

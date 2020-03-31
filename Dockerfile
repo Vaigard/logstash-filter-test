@@ -28,6 +28,7 @@ RUN \
   yum clean all && \
   easy_install supervisor
 
+COPY ./README.md /usr/share/logstash/README.md
 COPY ./container/supervisord.conf /etc/supervisor/supervisord.conf
 COPY ./container/config/logstash.yml /usr/share/logstash/config/logstash.yml
 COPY ./container/config/pipelines.yml /usr/share/logstash/config/pipelines.yml
