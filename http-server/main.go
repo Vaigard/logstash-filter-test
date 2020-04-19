@@ -6,39 +6,32 @@ import (
     "net/http"
     "net"
     "log"
-    "encoding/json"
     "bytes"
     "time"
     "os"
     "strings"
+    "fmt"
 )
 
 const (
-    RequestTypeInvalid                 = -1
-    RequestTypeEmptyFilter             = 0
-    RequestTypeMessageFilter           = 1
-    RequestTypeMessageFilterExpected   = 2
-    RequestTypeFilter                  = 3
+    RequestTypeCorrect          = 0
+    RequestTypeInvalid          = 1
+    RequestTypeEmptyFilter      = 2
+    RequestTypeEmptyMessage     = 3
 )
 
-var LogstashInputPort = 8082
-var ServerPort = ":8081"
-var ServerLogPath = "server.log"
-var ReadmeFile = "README.md"
-var FilterFilePath = "/usr/share/logstash/pipeline/filter.conf"
-var OutputFilePath = "/usr/share/logstash/output.json"
+const (
+    LogstashInputPort           = 8082
+    ServerPort                  = ":8081"
+    ServerLogPath               = "server.log"
+    ReadmeFile                  = "README.md"
+    FilterFilePath              = "/usr/share/logstash/pipeline/filter.conf"
+    OutputFilePath              = "/usr/share/logstash/output.json"
+)
 
 type logstashPipelineInput struct {
     Message     string
     Filter      string
-    Expected    string
-}
-
-type logstashPipelineOutput struct {
-    Output      string      `json:"output"`
-    // Diff        string      `json:"diff"`
-    // Lint        string      `json:"lint"`
-    Status      string      `json:"status"`
 }
 
 func main() {
@@ -80,28 +73,24 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
     log.Print("Got new request")
-    pipelineOutput := logstashPipelineOutput{}
 
     pipelineInput, requestType := getPipelineInput(request)
 
+    var pipelineOutput string
+
     switch requestType {
     case RequestTypeInvalid:
-        pipelineOutput = logstashPipelineOutput{Status: "Invalid request"}
+        pipelineOutput = "{\"Error\": \"Invalid request\"}"
     case RequestTypeEmptyFilter:
-        pipelineOutput = logstashPipelineOutput{Status: "Empty filter field"}
+        pipelineOutput = "{\"Error\": \"Empty filter\"}"
+    case RequestTypeEmptyMessage:
+        pipelineOutput = "{\"Error\": \"Empty message\"}"
     default:
-        pipelineOutput = testPipeline(pipelineInput, requestType)
-        pipelineOutput.Status = "OK"
-    }
-
-    responseJson, marshalError := json.Marshal(pipelineOutput)
-    if marshalError != nil {
-        http.Error(responseWriter, marshalError.Error(), http.StatusInternalServerError)
-        return
+        pipelineOutput = processPipeline(pipelineInput)
     }
 
     responseWriter.Header().Set("Content-Type", "application/json")
-    responseWriter.Write(responseJson)
+    responseWriter.Write([]byte(pipelineOutput))
 }
 
 func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
@@ -134,8 +123,6 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
             pipelineInput.Filter = buffer.String()
         case "message":
             pipelineInput.Message = buffer.String()
-        case "expected":
-            pipelineInput.Expected = buffer.String()
         default:
             return pipelineInput, RequestTypeInvalid
         }
@@ -145,42 +132,22 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
         return pipelineInput, RequestTypeEmptyFilter
     }
 
-    if pipelineInput.Message != "" && pipelineInput.Expected != "" {
-        return pipelineInput, RequestTypeMessageFilterExpected
+    if pipelineInput.Message == "" {
+        return pipelineInput, RequestTypeEmptyMessage
     }
 
-    if pipelineInput.Message != "" && pipelineInput.Expected == "" {
-        return pipelineInput, RequestTypeMessageFilter
-    }
-
-    return pipelineInput, RequestTypeFilter
+    return pipelineInput, RequestTypeCorrect
 }
 
-func testPipeline(pipelineInput logstashPipelineInput, requestType int) logstashPipelineOutput {
-    // if requestType == RequestTypeFilter {
-    //     return logstashPipelineOutput{Lint: lintFilter(pipelineInput.Filter)}
-    // }
-
-    pipelineOutput := logstashPipelineOutput{Output: processPipeline(pipelineInput.Message, pipelineInput.Filter)}
-
-    // if requestType == RequestTypeMessageFilterExpected {
-    //     pipelineOutput.Diff = compareOutput(pipelineInput.Expected, pipelineOutput.Output)
-    // }
-
-    return pipelineOutput
-}
-
-func lintFilter(filter string) string {
-    return "lintFilter"
-}
-
-func processPipeline(message string, filter string) string {
+func processPipeline(pipelineInput logstashPipelineInput) string {
+    message := pipelineInput.Message
+    filter := pipelineInput.Filter
     log.Printf("Process new filter and message")
     error := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
     if error != nil {
         errorMessage := "Cannot write filter: " + error.Error()
         log.Print(errorMessage)
-        return errorMessage
+        return fmt.Sprintf("{\"Error\": \"%s\"}", errorMessage)
     }
 
     defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
@@ -193,20 +160,16 @@ func processPipeline(message string, filter string) string {
     if error != nil {
         errorMessage := "Cannot send message to Logstash: " + error.Error()
         log.Print(errorMessage)
-        return errorMessage
+        return fmt.Sprintf("{\"Error\": \"%s\"}", errorMessage)
     }
 
     time.Sleep(5 * 1000 * time.Millisecond)
 
     defer os.Remove(OutputFilePath)
 
-    output := getLogstashOutput()     
+    output := getLogstashOutput()  
 
     return output
-}
-
-func compareOutput(expected string, actual string) string {
-    return "compareOutput"
 }
 
 func processMessage(message string) error {
