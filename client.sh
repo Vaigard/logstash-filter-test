@@ -5,13 +5,15 @@ if [ "$#" -ne 6 ]; then
   exit 1
 fi
 
-while getopts ":f:m:s:" opt; do
+while getopts ":f:m:s:j" opt; do
   case $opt in
   	s) server="$OPTARG"
     ;;
     f) filter_file="$OPTARG"
     ;;
     m) message_file="$OPTARG"
+    ;;
+    j) json_file="$OPTARG"
     ;;
     \?) echo "Invalid option: -$OPTARG" >&2 && exit 1
     ;;
@@ -23,7 +25,7 @@ if [ ! -f "$filter_file" ]; then
     exit 1
 fi
 
-if [ ! -f "$message_file" ]; then
+if [ ! -f "$message_file" && ! -f "$json_file"]; then
     echo "$message_file not exist"
     exit 1
 fi
@@ -40,6 +42,10 @@ if [ "$ping_res" != "pong" ]; then
 	exit 1
 fi
 
-echo "Start testing..."
+if [ -f "$message_file" && ! -f "$json_file"]; then
+  curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" "$server"/upload && echo
+fi
 
-curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" "$server"/upload && echo
+if [ ! -f "$message_file" && -f "$json_file"]; then
+  curl --request POST -F "filter=@$filter_file" -F "json=@$json_file" "$server"/upload && echo
+fi
