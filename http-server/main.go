@@ -27,11 +27,14 @@ const (
     ReadmeFile                  = "README.md"
     FilterFilePath              = "/usr/share/logstash/pipeline/filter.conf"
     OutputFilePath              = "/usr/share/logstash/output.json"
+    InputFilePath               = "/usr/share/logstash/input.json"
+    SinceDbFilePath             = "/usr/share/logstash/since_db"
 )
 
 type logstashPipelineInput struct {
     Message     string
     Filter      string
+    Json        string
 }
 
 func main() {
@@ -123,6 +126,8 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
             pipelineInput.Filter = buffer.String()
         case "message":
             pipelineInput.Message = buffer.String()
+        case "json":
+            pipelineInput.Json = buffer.String()
         default:
             return pipelineInput, RequestTypeInvalid
         }
@@ -132,7 +137,7 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
         return pipelineInput, RequestTypeEmptyFilter
     }
 
-    if pipelineInput.Message == "" {
+    if pipelineInput.Message == "" && pipelineInput.Json == "" {
         return pipelineInput, RequestTypeEmptyMessage
     }
 
@@ -140,7 +145,6 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
 }
 
 func processPipeline(pipelineInput logstashPipelineInput) string {
-    message := pipelineInput.Message
     filter := pipelineInput.Filter
     log.Printf("Process new filter and message")
     error := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
@@ -155,7 +159,11 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
     // wait for restart pipeline (autoreload in 2 seconds)
     time.Sleep(5 * 1000 * time.Millisecond)
 
-    error = processMessage(message)    
+    if pipelineInput.Message != "" {
+        error = processMessage(pipelineInput.Message)
+    } else {
+        error = processJson(pipelineInput.Json)
+    }
 
     if error != nil {
         errorMessage := "Cannot send message to Logstash: " + error.Error()
@@ -167,12 +175,12 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
 
     defer os.Remove(OutputFilePath)
 
-    output := getLogstashOutput()  
+    output := getLogstashOutput()
 
     return output
 }
 
-func processMessage(message string) error {
+func processMessage(message string) error {    
     messages := strings.Split(message, "\n")
 
     connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
@@ -195,7 +203,22 @@ func processMessage(message string) error {
     }
 
     return error
-} 
+}
+
+func processJson(json string) error { 
+    error := ioutil.WriteFile(InputFilePath, []byte(json), 0644)
+    if error != nil {
+        errorMessage := "Cannot write JSON file: " + error.Error()
+        log.Print(errorMessage)
+    }
+
+    time.Sleep(5 * 1000 * time.Millisecond)
+
+    os.Remove(InputFilePath)
+    os.Remove(SinceDbFilePath)
+    
+    return error
+}
 
 func getLogstashOutput() string {
     var output []byte
