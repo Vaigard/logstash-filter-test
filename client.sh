@@ -40,6 +40,4 @@ if [ "$ping_res" != "pong" ]; then
 	exit 1
 fi
 
-echo "Start testing..."
-
 curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" "$server"/upload && echo
