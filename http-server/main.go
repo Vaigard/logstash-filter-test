@@ -180,6 +180,7 @@ func processMessage(message string) error {
     port := LogstashUdpInputPort
 
     if json.Valid([]byte(messages[0])) {
+        log.Print("Here is JSON messages")
         port = LogstashJsonInputPort
     }
 
