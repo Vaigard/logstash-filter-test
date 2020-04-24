@@ -22,7 +22,7 @@ const (
 )
 
 const (
-    LogstashUdpInputPort        = 8082
+    LogstashPlainInputPort      = 8082
     LogstashJsonInputPort       = 8083
     ServerPort                  = ":8081"
     ServerLogPath               = "server.log"
@@ -177,7 +177,7 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
 func processMessage(message string) error {
     messages := strings.Split(message, "\n")
 
-    port := LogstashUdpInputPort
+    port := LogstashPlainInputPort
 
     if json.Valid([]byte(messages[0])) {
         log.Print("Here is JSON messages")
