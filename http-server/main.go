@@ -11,6 +11,7 @@ import (
     "os"
     "strings"
     "fmt"
+    "encoding/json"
 )
 
 const (
@@ -21,7 +22,8 @@ const (
 )
 
 const (
-    LogstashInputPort           = 8082
+    LogstashUdpInputPort        = 8082
+    LogstashJsonInputPort       = 8083
     ServerPort                  = ":8081"
     ServerLogPath               = "server.log"
     ReadmeFile                  = "README.md"
@@ -175,6 +177,12 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
 func processMessage(message string) error {
     messages := strings.Split(message, "\n")
 
+    port := LogstashUdpInputPort
+
+    if json.Valid([]byte(messages[0])) {
+        port = LogstashJsonInputPort
+    }
+
     connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
     if error != nil {
         errorMessage := "Cannot connect to port 1234/udp: " + error.Error()
@@ -184,7 +192,7 @@ func processMessage(message string) error {
     defer connection.Close()
 
     for try := 0; try < 3; try++ {
-        error = sendMessagesToLogstash(connection, messages)
+        error = sendMessagesToLogstash(connection, messages, port)
 
         if error == nil {
             break
@@ -220,8 +228,8 @@ func getLogstashOutput() string {
     return string(output)
 }
 
-func sendMessagesToLogstash(connection* net.UDPConn, messages []string) error {
-    logstashAddress := net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: LogstashInputPort}
+func sendMessagesToLogstash(connection* net.UDPConn, messages []string, port int) error {
+    logstashAddress := net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}
     for _, message := range messages {
         log.Printf("Message: %s", message)
         _, error := connection.WriteToUDP([]byte(message), &logstashAddress)
