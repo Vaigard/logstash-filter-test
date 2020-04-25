@@ -242,9 +242,9 @@ func getLogstashOutput() string {
 func sendMessagesToLogstash(connection* net.UDPConn, messages []string, port int) error {
     logstashAddress := net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}
     for _, message := range messages {
-        log.Printf("Message: %s", message)
         _, error := connection.WriteToUDP([]byte(message), &logstashAddress)
         if error != nil {
+            log.Printf("Cannot send message: %s", message)
             return error
         }
     }
