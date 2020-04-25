@@ -260,7 +260,7 @@ func changePatternsDirs(pipelineInput* logstashPipelineInput, patternsDirectorie
 }
 
 func writePatternsFile(patterns string) {
-    patternsFileName := PatternsDirectory + "/" + randStringBytes(PatternsFileNameLength)
+    patternsFileName := PatternsDirectory + "/" + randomString(PatternsFileNameLength)
     error := ioutil.WriteFile(patternsFileName, []byte(patterns), 0644)
     if error != nil {
         errorMessage := "Cannot write patterns file: " + error.Error()
@@ -293,7 +293,7 @@ func cleanPatternsDirectory(patternsDirectory string) {
     }
 }
 
-func randStringBytes(length int) string {
+func randomString(length int) string {
     const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     name := make([]byte, length)
     for letter := range name {
