@@ -12,6 +12,8 @@ import (
     "strings"
     "fmt"
     "encoding/json"
+    "path/filepath"
+    "math/rand"
 )
 
 const (
@@ -30,6 +32,7 @@ const (
     FilterFilePath              = "/usr/share/logstash/pipeline/filter.conf"
     OutputFilePath              = "/usr/share/logstash/output.json"
     PatternsDirectory           = "/usr/share/logstash/patterns"
+    PatternsFileNameLength      = 5
 )
 
 type logstashPipelineInput struct {
@@ -126,6 +129,8 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
             pipelineInput.Filter = buffer.String()
         case "message":
             pipelineInput.Message = buffer.String()
+        case "pattern":
+            writePatternsFile(buffer.String())
         default:
             return pipelineInput, RequestTypeInvalid
         }
@@ -171,6 +176,8 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
     defer os.Remove(OutputFilePath)
 
     output := getLogstashOutput()  
+
+    cleanPatternsDirectory(PatternsDirectory)
 
     return output
 }
@@ -241,4 +248,47 @@ func sendMessagesToLogstash(connection* net.UDPConn, messages []string, port int
     }
 
     return nil
+}
+
+func writePatternsFile(patterns string) {
+    patternsFileName := PatternsDirectory + "/" + randStringBytes(PatternsFileNameLength)
+    error := ioutil.WriteFile(patternsFileName, []byte(patterns), 0644)
+    if error != nil {
+        errorMessage := "Cannot write patterns file: " + error.Error()
+        log.Print(errorMessage)
+    }
+}
+
+func cleanPatternsDirectory(patternsDirectory string) {
+    directory, error := os.Open(patternsDirectory)
+    if error != nil {
+        errorMessage := "Cannot open patterns directory: " + error.Error()
+        log.Print(errorMessage)
+        return
+    }
+    defer directory.Close()
+
+    names, error := directory.Readdirnames(-1)
+    if error != nil {
+        errorMessage := "Cannot get pattern files names: " + error.Error()
+        log.Print(errorMessage)
+        return
+    }
+
+    for _, name := range names {
+        error = os.RemoveAll(filepath.Join(patternsDirectory, name))
+        if error != nil {
+            errorMessage := "Cannot delete patterns file %s: " + error.Error()
+            log.Printf(errorMessage, name)
+        }
+    }
+}
+
+func randStringBytes(length int) string {
+    const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    name := make([]byte, length)
+    for letter := range name {
+        name[letter] = letterBytes[rand.Intn(len(letterBytes))]
+    }
+    return string(name)
 }
