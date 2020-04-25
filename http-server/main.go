@@ -29,6 +29,7 @@ const (
     ReadmeFile                  = "README.md"
     FilterFilePath              = "/usr/share/logstash/pipeline/filter.conf"
     OutputFilePath              = "/usr/share/logstash/output.json"
+    PatternsDirectory           = "/usr/share/logstash/patterns"
 )
 
 type logstashPipelineInput struct {

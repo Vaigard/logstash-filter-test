@@ -38,4 +38,6 @@ COPY ./container/pipeline/io.conf /usr/share/logstash/pipeline/io.conf
 RUN chown logstash:root /usr/share/logstash/server
 RUN chown logstash:root /usr/share/logstash/pipeline/filter.conf
 
+RUN mkdir /usr/share/logstash/patterns
+
 ENTRYPOINT ["/usr/bin/supervisord"]
