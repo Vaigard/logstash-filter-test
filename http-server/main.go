@@ -131,6 +131,8 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
             pipelineInput.Message = buffer.String()
         case "pattern":
             writePatternsFile(buffer.String())
+        case "patterns_dir":
+            defer changePatternsDirs(&pipelineInput, buffer.String())
         default:
             return pipelineInput, RequestTypeInvalid
         }
@@ -248,6 +250,13 @@ func sendMessagesToLogstash(connection* net.UDPConn, messages []string, port int
     }
 
     return nil
+}
+
+func changePatternsDirs(pipelineInput* logstashPipelineInput, patternsDirectories string) {
+    patternsDirectoriesList := strings.Split(patternsDirectories, ",")
+    for _, patternsDirectory := range patternsDirectoriesList {
+        pipelineInput.Filter = strings.ReplaceAll(pipelineInput.Filter, patternsDirectory, PatternsDirectory)
+    }
 }
 
 func writePatternsFile(patterns string) {
