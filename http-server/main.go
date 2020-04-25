@@ -129,7 +129,7 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
             pipelineInput.Filter = buffer.String()
         case "message":
             pipelineInput.Message = buffer.String()
-        case "pattern":
+        case "patterns":
             writePatternsFile(buffer.String())
         case "patterns_dir":
             defer changePatternsDirs(&pipelineInput, buffer.String())
