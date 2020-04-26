@@ -5,7 +5,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server .
 
 FROM docker.elastic.co/logstash/logstash:7.5.1
 
-EXPOSE 8081
+EXPOSE 8181
 
 COPY --from=0 /root/server /usr/share/logstash/server
 
@@ -35,7 +35,11 @@ COPY ./container/config/pipelines.yml /usr/share/logstash/config/pipelines.yml
 COPY ./container/pipeline/filter.conf /usr/share/logstash/pipeline/filter.conf
 COPY ./container/pipeline/io.conf /usr/share/logstash/pipeline/io.conf
 
-RUN chown logstash:root /usr/share/logstash/server
-RUN chown logstash:root /usr/share/logstash/pipeline/filter.conf
+RUN \
+  mkdir /usr/share/logstash/patterns && \
+  chown logstash:root /usr/share/logstash/server && \
+  chown logstash:root /usr/share/logstash/pipeline/filter.conf && \
+  chown logstash:root /usr/share/logstash/patterns
+
 
 ENTRYPOINT ["/usr/bin/supervisord"]

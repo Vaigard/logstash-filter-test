@@ -12,6 +12,8 @@ import (
     "strings"
     "fmt"
     "encoding/json"
+    "path/filepath"
+    "math/rand"
 )
 
 const (
@@ -22,13 +24,16 @@ const (
 )
 
 const (
-    LogstashPlainInputPort      = 8082
-    LogstashJsonInputPort       = 8083
-    ServerPort                  = ":8081"
+    LocalOutboundPort           = 8180
+    ServerPort                  = ":8181"
+    LogstashPlainInputPort      = 8182
+    LogstashJsonInputPort       = 8183
     ServerLogPath               = "server.log"
     ReadmeFile                  = "README.md"
     FilterFilePath              = "/usr/share/logstash/pipeline/filter.conf"
     OutputFilePath              = "/usr/share/logstash/output.json"
+    PatternsDirectory           = "/usr/share/logstash/patterns"
+    PatternsFileNameLength      = 5
 )
 
 type logstashPipelineInput struct {
@@ -125,6 +130,10 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
             pipelineInput.Filter = buffer.String()
         case "message":
             pipelineInput.Message = buffer.String()
+        case "patterns":
+            writePatternsFile(buffer.String())
+        case "patterns_dir":
+            defer changePatternsDirs(&pipelineInput, buffer.String())
         default:
             return pipelineInput, RequestTypeInvalid
         }
@@ -171,6 +180,8 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
 
     output := getLogstashOutput()  
 
+    cleanPatternsDirectory(PatternsDirectory)
+
     return output
 }
 
@@ -184,7 +195,7 @@ func processMessage(message string) error {
         port = LogstashJsonInputPort
     }
 
-    connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
+    connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: LocalOutboundPort})
     if error != nil {
         errorMessage := "Cannot connect to port 1234/udp: " + error.Error()
         log.Print(errorMessage)
@@ -232,12 +243,62 @@ func getLogstashOutput() string {
 func sendMessagesToLogstash(connection* net.UDPConn, messages []string, port int) error {
     logstashAddress := net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}
     for _, message := range messages {
-        log.Printf("Message: %s", message)
         _, error := connection.WriteToUDP([]byte(message), &logstashAddress)
         if error != nil {
+            log.Printf("Cannot send message: %s", message)
             return error
         }
     }
 
     return nil
+}
+
+func changePatternsDirs(pipelineInput* logstashPipelineInput, patternsDirectories string) {
+    patternsDirectoriesList := strings.Split(patternsDirectories, ",")
+    for _, patternsDirectory := range patternsDirectoriesList {
+        pipelineInput.Filter = strings.ReplaceAll(pipelineInput.Filter, patternsDirectory, PatternsDirectory)
+    }
+}
+
+func writePatternsFile(patterns string) {
+    patternsFileName := PatternsDirectory + "/" + randomString(PatternsFileNameLength)
+    error := ioutil.WriteFile(patternsFileName, []byte(patterns), 0644)
+    if error != nil {
+        errorMessage := "Cannot write patterns file: " + error.Error()
+        log.Print(errorMessage)
+    }
+}
+
+func cleanPatternsDirectory(patternsDirectory string) {
+    directory, error := os.Open(patternsDirectory)
+    if error != nil {
+        errorMessage := "Cannot open patterns directory: " + error.Error()
+        log.Print(errorMessage)
+        return
+    }
+    defer directory.Close()
+
+    names, error := directory.Readdirnames(-1)
+    if error != nil {
+        errorMessage := "Cannot get pattern files names: " + error.Error()
+        log.Print(errorMessage)
+        return
+    }
+
+    for _, name := range names {
+        error = os.RemoveAll(filepath.Join(patternsDirectory, name))
+        if error != nil {
+            errorMessage := "Cannot delete patterns file %s: " + error.Error()
+            log.Printf(errorMessage, name)
+        }
+    }
+}
+
+func randomString(length int) string {
+    const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    name := make([]byte, length)
+    for letter := range name {
+        name[letter] = letterBytes[rand.Intn(len(letterBytes))]
+    }
+    return string(name)
 }
