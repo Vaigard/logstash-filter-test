@@ -24,9 +24,10 @@ const (
 )
 
 const (
-    LogstashPlainInputPort      = 8082
-    LogstashJsonInputPort       = 8083
-    ServerPort                  = ":8081"
+    LocalOutboundPort           = 8180
+    ServerPort                  = ":8181"
+    LogstashPlainInputPort      = 8182
+    LogstashJsonInputPort       = 8183
     ServerLogPath               = "server.log"
     ReadmeFile                  = "README.md"
     FilterFilePath              = "/usr/share/logstash/pipeline/filter.conf"
@@ -194,7 +195,7 @@ func processMessage(message string) error {
         port = LogstashJsonInputPort
     }
 
-    connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: 1234})
+    connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: LocalOutboundPort})
     if error != nil {
         errorMessage := "Cannot connect to port 1234/udp: " + error.Error()
         log.Print(errorMessage)

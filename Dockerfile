@@ -5,7 +5,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server .
 
 FROM docker.elastic.co/logstash/logstash:7.5.1
 
-EXPOSE 8081
+EXPOSE 8181
 
 COPY --from=0 /root/server /usr/share/logstash/server
 
