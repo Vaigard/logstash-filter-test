@@ -61,11 +61,11 @@ func main() {
 // "/"
 // Main page returns documentation about server.
 func mainHandler(responseWriter http.ResponseWriter, request *http.Request) {
-    documentation, error := ioutil.ReadFile(ReadmeFile)
-    if error == nil {
+    documentation, err := ioutil.ReadFile(ReadmeFile)
+    if err == nil {
         io.WriteString(responseWriter, string(documentation))
     } else {
-        log.Printf("Cannot read Readme file: %s", error.Error())
+        log.Printf("Cannot read Readme file: %s", err.Error())
         io.WriteString(responseWriter, "Logstash filters tester's server\n")
     }
 }
@@ -102,23 +102,23 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
 
 func getPipelineInput(request *http.Request) (logstashPipelineInput, int) {
     pipelineInput := logstashPipelineInput{}
-    multiPartReader, error := request.MultipartReader()
-    if error != nil {
-        log.Printf("Parse request: %s", error.Error())
+    multiPartReader, err := request.MultipartReader()
+    if err != nil {
+        log.Printf("Parse request: %s", err.Error())
         return pipelineInput, RequestTypeInvalid
     }
 
     for {
-        part, error := multiPartReader.NextPart()
+        part, err := multiPartReader.NextPart()
 
         // This is OK, no more parts
-        if error == io.EOF {
+        if err == io.EOF {
             break
         }
 
         // Any other error
-        if error != nil {
-            log.Printf("Get new request part: %s", error.Error())
+        if err != nil {
+            log.Printf("Get new request part: %s", err.Error())
             return pipelineInput, RequestTypeInvalid
         }
 
@@ -154,9 +154,9 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
     message := pipelineInput.Message
     filter := pipelineInput.Filter
     log.Printf("Process new filter and message")
-    error := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
-    if error != nil {
-        errorMessage := "Cannot write filter: " + error.Error()
+    err := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
+    if err != nil {
+        errorMessage := "Cannot write filter: " + err.Error()
         log.Print(errorMessage)
         return fmt.Sprintf("{\"Error\": \"%s\"}", errorMessage)
     }
@@ -166,10 +166,10 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
     // wait for restart pipeline (autoreload in 2 seconds)
     time.Sleep(5 * 1000 * time.Millisecond)
 
-    error = processMessage(message)    
+    err = processMessage(message)
 
-    if error != nil {
-        errorMessage := "Cannot send message to Logstash: " + error.Error()
+    if err != nil {
+        errorMessage := "Cannot send message to Logstash: " + err.Error()
         log.Print(errorMessage)
         return fmt.Sprintf("{\"Error\": \"%s\"}", errorMessage)
     }
@@ -178,7 +178,7 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
 
     defer os.Remove(OutputFilePath)
 
-    output := getLogstashOutput()  
+    output := getLogstashOutput()
 
     cleanPatternsDirectory(PatternsDirectory)
 
@@ -195,44 +195,44 @@ func processMessage(message string) error {
         port = LogstashJsonInputPort
     }
 
-    connection, error := net.ListenUDP("udp", &net.UDPAddr{Port: LocalOutboundPort})
-    if error != nil {
-        errorMessage := "Cannot connect to port 1234/udp: " + error.Error()
+    connection, err := net.ListenUDP("udp", &net.UDPAddr{Port: LocalOutboundPort})
+    if err != nil {
+        errorMessage := "Cannot connect to port 1234/udp: " + err.Error()
         log.Print(errorMessage)
-        return error
+        return err
     }
     defer connection.Close()
 
     for try := 0; try < 3; try++ {
-        error = sendMessagesToLogstash(connection, messages, port)
+        err = sendMessagesToLogstash(connection, messages, port)
 
-        if error == nil {
+        if err == nil {
             break
         } else {
-            log.Printf("Try to send message to Logstash: %s", error.Error())
+            log.Printf("Try to send message to Logstash: %s", err.Error())
         }
         time.Sleep(1 * 1000 * time.Millisecond)
     }
 
-    return error
-} 
+    return err
+}
 
 func getLogstashOutput() string {
     var output []byte
-    var error error
+    var err error
 
     for try := 0; try < 5; try++ {
-        output, error = ioutil.ReadFile(OutputFilePath)
-        if error == nil {
+        output, err = ioutil.ReadFile(OutputFilePath)
+        if err == nil {
             break
         } else {
-            log.Print(error.Error())
+            log.Print(err.Error())
         }
         time.Sleep(3 * 1000 * time.Millisecond)
     }
 
-    if error != nil {
-        errorMessage := "Cannot read output: " + error.Error()
+    if err != nil {
+        errorMessage := "Cannot read output: " + err.Error()
         log.Print(errorMessage)
         return errorMessage
     }
@@ -243,10 +243,10 @@ func getLogstashOutput() string {
 func sendMessagesToLogstash(connection* net.UDPConn, messages []string, port int) error {
     logstashAddress := net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}
     for _, message := range messages {
-        _, error := connection.WriteToUDP([]byte(message), &logstashAddress)
-        if error != nil {
+        _, err := connection.WriteToUDP([]byte(message), &logstashAddress)
+        if err != nil {
             log.Printf("Cannot send message: %s", message)
-            return error
+            return err
         }
     }
 
@@ -262,33 +262,33 @@ func changePatternsDirs(pipelineInput* logstashPipelineInput, patternsDirectorie
 
 func writePatternsFile(patterns string) {
     patternsFileName := PatternsDirectory + "/" + randomString(PatternsFileNameLength)
-    error := ioutil.WriteFile(patternsFileName, []byte(patterns), 0644)
-    if error != nil {
-        errorMessage := "Cannot write patterns file: " + error.Error()
+    err := ioutil.WriteFile(patternsFileName, []byte(patterns), 0644)
+    if err != nil {
+        errorMessage := "Cannot write patterns file: " + err.Error()
         log.Print(errorMessage)
     }
 }
 
 func cleanPatternsDirectory(patternsDirectory string) {
-    directory, error := os.Open(patternsDirectory)
-    if error != nil {
-        errorMessage := "Cannot open patterns directory: " + error.Error()
+    directory, err := os.Open(patternsDirectory)
+    if err != nil {
+        errorMessage := "Cannot open patterns directory: " + err.Error()
         log.Print(errorMessage)
         return
     }
     defer directory.Close()
 
-    names, error := directory.Readdirnames(-1)
-    if error != nil {
-        errorMessage := "Cannot get pattern files names: " + error.Error()
+    names, err := directory.Readdirnames(-1)
+    if err != nil {
+        errorMessage := "Cannot get pattern files names: " + err.Error()
         log.Print(errorMessage)
         return
     }
 
     for _, name := range names {
-        error = os.RemoveAll(filepath.Join(patternsDirectory, name))
-        if error != nil {
-            errorMessage := "Cannot delete patterns file %s: " + error.Error()
+        err = os.RemoveAll(filepath.Join(patternsDirectory, name))
+        if err != nil {
+            errorMessage := "Cannot delete patterns file %s: " + err.Error()
             log.Printf(errorMessage, name)
         }
     }
