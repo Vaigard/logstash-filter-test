@@ -212,7 +212,7 @@ func getLogstashOutput() string {
 	var output []byte
 	var err error
 
-	for try := 0; try < 5; try++ {
+	for try := 0; try < 10; try++ {
 		output, err = ioutil.ReadFile(OutputFilePath)
 		if err == nil {
 			break
