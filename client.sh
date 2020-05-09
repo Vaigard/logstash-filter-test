@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [ "$#" -ne 6 ] & [ "$#" -ne 10 ]; then
+if [ "$#" -ne 6 ] && [ "$#" -ne 10 ]; then
   echo "Usage: ./client.sh -s <server> -f <filter file name> -m <message file name> [-p <patterns file name> -d <patterns directories>]" >&2
   exit 1
 fi
