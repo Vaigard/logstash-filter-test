@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -26,8 +25,7 @@ const (
 const (
 	LocalOutboundPort      = 8180
 	ServerPort             = ":8181"
-	LogstashPlainInputPort = 8182
-	LogstashJsonInputPort  = 8183
+	LogstashInputPort      = 8182
 	ServerLogPath          = "server.log"
 	ReadmeFile             = "README.md"
 	FilterFilePath         = "/usr/share/logstash/pipeline/filter.conf"
@@ -188,13 +186,6 @@ func processPipeline(pipelineInput logstashPipelineInput) string {
 func processMessage(message string) error {
 	messages := strings.Split(message, "\n")
 
-	port := LogstashPlainInputPort
-
-	if json.Valid([]byte(messages[0])) {
-		log.Print("Here is JSON messages")
-		port = LogstashJsonInputPort
-	}
-
 	connection, err := net.ListenUDP("udp", &net.UDPAddr{Port: LocalOutboundPort})
 	if err != nil {
 		errorMessage := "Cannot connect to port 1234/udp: " + err.Error()
@@ -204,7 +195,7 @@ func processMessage(message string) error {
 	defer connection.Close()
 
 	for try := 0; try < 3; try++ {
-		err = sendMessagesToLogstash(connection, messages, port)
+		err = sendMessagesToLogstash(connection, messages, LogstashInputPort)
 
 		if err == nil {
 			break
@@ -221,7 +212,7 @@ func getLogstashOutput() string {
 	var output []byte
 	var err error
 
-	for try := 0; try < 5; try++ {
+	for try := 0; try < 10; try++ {
 		output, err = ioutil.ReadFile(OutputFilePath)
 		if err == nil {
 			break
