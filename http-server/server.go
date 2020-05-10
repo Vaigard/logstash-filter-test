@@ -77,21 +77,52 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
 	log.Println("Got new request")
-
+	
 	var pipelineOutput string
 
+	responseWriter.Header().Set("Content-Type", "application/json")
+	defer responseWriter.Write([]byte(pipelineOutput))
+
 	pipelineInput, err := getPipelineInput(request)
-	if err == nil {
-		pipelineOutput, err = processPipeline(pipelineInput, FilterFilePath, OutputFilePath, PatternsDirectory, LogstashInputPort)
+	if err != nil {
+		pipelineOutput = fmt.Sprintf("{\"Error\": \"%s\"}", err.Error())
+		log.Println(err.Error())
+		return
 	}
+
+	if pipelineInput.PatternsDirs != "" {
+		changePatternsDirs(&pipelineInput, PatternsDirectory)
+	}
+
+	if pipelineInput.Pattern != "" {
+		patternFilePath := filepath.Join(PatternsDirectory, "pattern")
+		err := ioutil.WriteFile(patternFilePath, []byte(pipelineInput.Pattern), 0644)
+		if err != nil {
+			pipelineOutput = fmt.Sprintf("{\"Error\": \"Cannot write patterns file: %s\"}", err.Error())
+			log.Println(err.Error())
+			return
+		}
+		defer os.Remove(patternFilePath)
+	}
+
+	err = ioutil.WriteFile(FilterFilePath, []byte(pipelineInput.Filter), 0644)
+	if err != nil {
+		pipelineOutput = fmt.Sprintf("{\"Error\": \"Cannot write filter: %s\"}", err.Error())
+		log.Println(err.Error())
+		return
+	}
+
+	defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
+
+	// wait for restart pipeline (autoreload in 2 seconds)
+	time.Sleep(5 * 1000 * time.Millisecond)
+
+	pipelineOutput, err = processPipeline(pipelineInput, OutputFilePath, LogstashInputPort)	
 
 	if err != nil {
 		pipelineOutput = fmt.Sprintf("{\"Error\": \"%s\"}", err.Error())
 		log.Println(err.Error())
 	}
-	
-	responseWriter.Header().Set("Content-Type", "application/json")
-	responseWriter.Write([]byte(pipelineOutput))
 }
 
 func getPipelineInput(request *http.Request) (logstashPipelineInput, error) {
@@ -144,35 +175,8 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, error) {
 	return pipelineInput, nil
 }
 
-func processPipeline(pipelineInput logstashPipelineInput, filterFilePath string, outputFilePath string, patternsDirectory string, logstashInputPort int) (string, error) {
-	message := pipelineInput.Message
-	filter := pipelineInput.Filter
-
-	if pipelineInput.PatternsDirs != "" {
-		changePatternsDirs(&pipelineInput, patternsDirectory)
-	}
-
-	if pipelineInput.Pattern != "" {
-		patternFilePath := filepath.Join(patternsDirectory, "pattern")
-		err := ioutil.WriteFile(patternFilePath, []byte(pipelineInput.Pattern), 0644)
-		if err != nil {
-			return "", fmt.Errorf("Cannot write patterns file: %s", err.Error())
-		}
-		defer os.Remove(patternFilePath)
-	}
-
-	log.Printf("Process new filter and message")
-	err := ioutil.WriteFile(filterFilePath, []byte(filter), 0644)
-	if err != nil {
-		return "", fmt.Errorf("Cannot write filter: %s", err.Error())
-	}
-
-	defer ioutil.WriteFile(filterFilePath, []byte("filter{}\n"), 0644)
-
-	// wait for restart pipeline (autoreload in 2 seconds)
-	time.Sleep(5 * 1000 * time.Millisecond)
-
-	err = processMessage(message, logstashInputPort)
+func processPipeline(pipelineInput logstashPipelineInput, outputFilePath string, logstashInputPort int) (string, error) {
+	err := processMessage(pipelineInput.Message, logstashInputPort)
 
 	if err != nil {
 		return "", fmt.Errorf("Cannot send message to Logstash: %s" + err.Error())
