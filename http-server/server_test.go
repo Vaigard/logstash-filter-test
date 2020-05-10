@@ -2,35 +2,66 @@ package main
 
 import (
 	"net"
-	"net/http"
 	"os"
+	"fmt"
 	"io/ioutil"
-	"net/http/httptest"
-	"strconv"
-	"strings"
 	"testing"
-	"path/filepath"
 
 	"github.com/stretchr/testify/assert"
 )
-
-const TestingFileDirectory = "testing-files"
 
 func TestGetPipelineInput(t *testing.T) {
 
 }
 
 func TestProcessPipeline(t *testing.T) {
+	correctOutput := "output"
+	filePath := "output"
 
+	err := ioutil.WriteFile(filePath, []byte(correctOutput), 0644)
+	if err != nil {
+		assert.Fail(
+			t,
+			"Test run fail: cannot write output file in 'TestProcessPipeline'.",
+		)
+	}
+
+	pipelineInput := logstashPipelineInput{
+		Message: "message",
+		Filter: "filter",
+		Pattern: "pattern",
+		PatternsDirs: "dirs",
+	}
+
+	output, err := processPipeline(pipelineInput, filePath, 8181)
+	if err != nil {
+		assert.Fail(
+			t,
+			fmt.Sprintf("Function 'processPipeline' returns error: %s", err.Error()),
+		)
+	}
+
+	assert.Equal(
+		t,
+		correctOutput,
+		output,
+		"Function 'processPipeline' returns incorrect output.",
+	)
 }
 
 func TestProcessMessage(t *testing.T) {
-	
+	err := processMessage("test1\ntest2", 8181)
+	if err != nil {
+		assert.Fail(
+			t,
+			"Cannot send message to testServer with 'processMessage' function.",
+		)
+	}
 }
 
 func TestGetLogstashOutput(t *testing.T) {
 	correctOutput := "test"
-	filePath := filepath.Join(TestingFileDirectory, "output")
+	filePath := "output"
 	defer os.Remove(filePath)
 	err := ioutil.WriteFile(filePath, []byte(correctOutput), 0644)
 	if err != nil {
@@ -57,16 +88,6 @@ func TestGetLogstashOutput(t *testing.T) {
 }
 
 func TestSendMessagesToLogstash(t *testing.T) {
-	testServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {}))
-
-	testServerPort, err := strconv.Atoi(strings.Split(testServer.URL, ":")[2])
-	if err != nil {
-		assert.Fail(
-			t,
-			"Test run fail: cannot get testServer port in 'TestSendMessagesToLogstash'.",
-		)
-	}
-
 	connection, err := net.ListenUDP("udp", &net.UDPAddr{Port: 8180})
 	if err != nil {
 		assert.Fail(
@@ -76,7 +97,7 @@ func TestSendMessagesToLogstash(t *testing.T) {
 	}
 	defer connection.Close()
 
-	err = sendMessagesToLogstash(connection, []string{"test"}, testServerPort)
+	err = sendMessagesToLogstash(connection, []string{"test"}, 8181)
 	if err != nil {
 		assert.Fail(
 			t,
