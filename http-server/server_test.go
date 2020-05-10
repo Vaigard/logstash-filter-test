@@ -53,22 +53,6 @@ func TestChangePatternsDirs(t *testing.T) {
 	)
 }
 
-func TestWritePatternsFile(t *testing.T) {
-	
-}
-
 func TestCleanPatternsDirectory(t *testing.T) {
 	
-}
-
-func TestRandomString(t *testing.T) {
-	first := randomString(5)
-	second := randomString(5)
-
-	assert.NotEqual(
-		t,
-		first,
-		second,
-		"Function 'randomString' returns same string when must returns differents.",
-	)
 }

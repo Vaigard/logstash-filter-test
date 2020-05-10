@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -23,8 +22,6 @@ const (
 )
 
 const (
-	LocalOutboundPort      = 8180
-	ServerPort             = ":8181"
 	LogstashInputPort      = 8182
 	ServerLogPath          = "server.log"
 	ReadmeFile             = "README.md"
@@ -55,7 +52,7 @@ func main() {
 
 	os.Remove(OutputFilePath)
 
-	log.Fatal(http.ListenAndServe(ServerPort, nil))
+	log.Fatal(http.ListenAndServe(":8181", nil))
 }
 
 // "/"
@@ -79,19 +76,18 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // "/upload"
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
-	log.Print("Got new request")
+	log.Println("Got new request")
 
-	defer cleanPatternsDirectory(PatternsDirectory)
 	var pipelineOutput string
 
-	pipelineInput, err := getPipelineInput(request)	
-
+	pipelineInput, err := getPipelineInput(request)
 	if err == nil {
-		pipelineOutput, err = processPipeline(pipelineInput, PatternsDirectory)
+		pipelineOutput, err = processPipeline(pipelineInput, FilterFilePath, OutputFilePath, PatternsDirectory, LogstashInputPort)
 	}
 
 	if err != nil {
 		pipelineOutput = fmt.Sprintf("{\"Error\": \"%s\"}", err.Error())
+		log.Println(err.Error())
 	}
 	
 	responseWriter.Header().Set("Content-Type", "application/json")
@@ -148,7 +144,7 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, error) {
 	return pipelineInput, nil
 }
 
-func processPipeline(pipelineInput logstashPipelineInput, patternsDirectory string) (string, error) {
+func processPipeline(pipelineInput logstashPipelineInput, filterFilePath string, outputFilePath string, patternsDirectory string, logstashInputPort int) (string, error) {
 	message := pipelineInput.Message
 	filter := pipelineInput.Filter
 
@@ -166,17 +162,17 @@ func processPipeline(pipelineInput logstashPipelineInput, patternsDirectory stri
 	}
 
 	log.Printf("Process new filter and message")
-	err := ioutil.WriteFile(FilterFilePath, []byte(filter), 0644)
+	err := ioutil.WriteFile(filterFilePath, []byte(filter), 0644)
 	if err != nil {
 		return "", fmt.Errorf("Cannot write filter: %s", err.Error())
 	}
 
-	defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
+	defer ioutil.WriteFile(filterFilePath, []byte("filter{}\n"), 0644)
 
 	// wait for restart pipeline (autoreload in 2 seconds)
 	time.Sleep(5 * 1000 * time.Millisecond)
 
-	err = processMessage(message)
+	err = processMessage(message, logstashInputPort)
 
 	if err != nil {
 		return "", fmt.Errorf("Cannot send message to Logstash: %s" + err.Error())
@@ -184,9 +180,9 @@ func processPipeline(pipelineInput logstashPipelineInput, patternsDirectory stri
 
 	time.Sleep(5 * 1000 * time.Millisecond)
 
-	defer os.Remove(OutputFilePath)
+	defer os.Remove(outputFilePath)
 
-	output, err := getLogstashOutput(OutputFilePath)	
+	output, err := getLogstashOutput(outputFilePath)	
 	if err != nil {
 		return "", fmt.Errorf("Cannot read logstash output: %s", err.Error())
 	}
@@ -194,24 +190,20 @@ func processPipeline(pipelineInput logstashPipelineInput, patternsDirectory stri
 	return output, nil
 }
 
-func processMessage(message string) error {
+func processMessage(message string, logstashInputPort int) error {
 	messages := strings.Split(message, "\n")
 
-	connection, err := net.ListenUDP("udp", &net.UDPAddr{Port: LocalOutboundPort})
+	connection, err := net.ListenUDP("udp", &net.UDPAddr{Port: 8180})
 	if err != nil {
-		errorMessage := "Cannot connect to port 1234/udp: " + err.Error()
-		log.Print(errorMessage)
-		return err
+		return fmt.Errorf("Cannot connect to port 8180/udp: %s", err.Error())
 	}
 	defer connection.Close()
 
 	for try := 0; try < 3; try++ {
-		err = sendMessagesToLogstash(connection, messages, LogstashInputPort)
+		err = sendMessagesToLogstash(connection, messages, logstashInputPort)
 
 		if err == nil {
 			break
-		} else {
-			log.Printf("Try to send message to Logstash: %s", err.Error())
 		}
 		time.Sleep(1 * 1000 * time.Millisecond)
 	}
@@ -256,45 +248,4 @@ func changePatternsDirs(pipelineInput *logstashPipelineInput, actualPatternsDire
 	for _, patternsDirectory := range patternsDirectoriesList {
 		pipelineInput.Filter = strings.ReplaceAll(pipelineInput.Filter, patternsDirectory, actualPatternsDirectory)
 	}
-}
-
-func writePatternsFile(patterns string, patternsDirectory string) error {
-	patternsFileName := patternsDirectory + "/" + randomString(PatternsFileNameLength)
-	err := ioutil.WriteFile(patternsFileName, []byte(patterns), 0644)
-	if err != nil {
-		return fmt.Errorf("Cannot write patterns file: %s", err.Error())
-	}
-
-	return nil
-}
-
-func cleanPatternsDirectory(patternsDirectory string) error {
-	directory, err := os.Open(patternsDirectory)
-	if err != nil {
-		return fmt.Errorf("Cannot open patterns directory: %s", err.Error())
-	}
-	defer directory.Close()
-
-	names, err := directory.Readdirnames(-1)
-	if err != nil {
-		return fmt.Errorf("Cannot get pattern files names: %s", err.Error())
-	}
-
-	for _, name := range names {
-		err = os.RemoveAll(filepath.Join(patternsDirectory, name))
-		if err != nil {
-			return fmt.Errorf("Cannot delete patterns file %s: %s", name, err.Error())
-		}
-	}
-
-	return nil
-}
-
-func randomString(length int) string {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	name := make([]byte, length)
-	for letter := range name {
-		name[letter] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return string(name)
 }
