@@ -32,9 +32,9 @@ const (
 )
 
 type logstashPipelineInput struct {
-	Message string
-	Filter  string
-	Pattern string
+	Message      string
+	Filter       string
+	Patterns     string
 	PatternsDirs string
 }
 
@@ -77,11 +77,14 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
 	log.Println("Got new request")
-	
+
 	var pipelineOutput string
 
 	responseWriter.Header().Set("Content-Type", "application/json")
-	defer responseWriter.Write([]byte(pipelineOutput))
+
+	defer func(rw http.ResponseWriter, response *string) {
+		rw.Write([]byte(*response))
+	}(responseWriter, &pipelineOutput)
 
 	pipelineInput, err := getPipelineInput(request)
 	if err != nil {
@@ -94,9 +97,9 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
 		changePatternsDirs(&pipelineInput, PatternsDirectory)
 	}
 
-	if pipelineInput.Pattern != "" {
+	if pipelineInput.Patterns != "" {
 		patternFilePath := filepath.Join(PatternsDirectory, "pattern")
-		err := ioutil.WriteFile(patternFilePath, []byte(pipelineInput.Pattern), 0644)
+		err := ioutil.WriteFile(patternFilePath, []byte(pipelineInput.Patterns), 0644)
 		if err != nil {
 			pipelineOutput = fmt.Sprintf("{\"Error\": \"Cannot write patterns file: %s\"}", err.Error())
 			log.Println(err.Error())
@@ -117,7 +120,7 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
 	// wait for restart pipeline (autoreload in 2 seconds)
 	time.Sleep(5 * 1000 * time.Millisecond)
 
-	pipelineOutput, err = processPipeline(pipelineInput, OutputFilePath, LogstashInputPort)	
+	pipelineOutput, err = processPipeline(pipelineInput, OutputFilePath, LogstashInputPort)
 
 	if err != nil {
 		pipelineOutput = fmt.Sprintf("{\"Error\": \"%s\"}", err.Error())
@@ -148,15 +151,13 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, error) {
 		var buffer bytes.Buffer
 		io.Copy(&buffer, part)
 
-		pipelineInput.Pattern = ""
-
 		switch part.FormName() {
 		case "filter":
 			pipelineInput.Filter = buffer.String()
 		case "message":
 			pipelineInput.Message = buffer.String()
 		case "patterns":
-			pipelineInput.Pattern = fmt.Sprintf("%s\n%s", pipelineInput.Pattern, buffer.String())
+			pipelineInput.Patterns = buffer.String()
 		case "patterns_dir":
 			pipelineInput.PatternsDirs = buffer.String()
 		default:
@@ -186,7 +187,7 @@ func processPipeline(pipelineInput logstashPipelineInput, outputFilePath string,
 
 	defer os.Remove(outputFilePath)
 
-	output, err := getLogstashOutput(outputFilePath)	
+	output, err := getLogstashOutput(outputFilePath)
 	if err != nil {
 		return "", fmt.Errorf("Cannot read logstash output: %s", err.Error())
 	}
@@ -252,4 +253,6 @@ func changePatternsDirs(pipelineInput *logstashPipelineInput, actualPatternsDire
 	for _, patternsDirectory := range patternsDirectoriesList {
 		pipelineInput.Filter = strings.ReplaceAll(pipelineInput.Filter, patternsDirectory, actualPatternsDirectory)
 	}
+
+	log.Println(pipelineInput.Filter)
 }

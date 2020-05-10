@@ -1,18 +1,14 @@
 package main
 
 import (
-	"net"
-	"os"
 	"fmt"
 	"io/ioutil"
+	"net"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestGetPipelineInput(t *testing.T) {
-
-}
 
 func TestProcessPipeline(t *testing.T) {
 	correctOutput := "output"
@@ -27,9 +23,9 @@ func TestProcessPipeline(t *testing.T) {
 	}
 
 	pipelineInput := logstashPipelineInput{
-		Message: "message",
-		Filter: "filter",
-		Pattern: "pattern",
+		Message:      "message",
+		Filter:       "filter",
+		Patterns:     "pattern",
 		PatternsDirs: "dirs",
 	}
 
@@ -108,9 +104,9 @@ func TestSendMessagesToLogstash(t *testing.T) {
 
 func TestChangePatternsDirs(t *testing.T) {
 	pipelineInput := logstashPipelineInput{
-		Message: "message",
-		Filter: "qwe asd qwe zxc",
-		Pattern: "pattern",
+		Message:      "message",
+		Filter:       "qwe asd qwe zxc",
+		Patterns:     "pattern",
 		PatternsDirs: "asd,zxc",
 	}
 
