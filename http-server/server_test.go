@@ -29,7 +29,13 @@ func TestGetLogstashOutput(t *testing.T) {
 }
 
 func TestSendMessagesToLogstash(t *testing.T) {
-	
+	testServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+	}))
+
+	assert.Fail(
+		t,
+		testServer.URL,
+	)
 }
 
 func TestChangePatternsDirs(t *testing.T) {
@@ -51,8 +57,4 @@ func TestChangePatternsDirs(t *testing.T) {
 		pipelineInput.Filter,
 		"Function 'changePatternsDirs' make incorrect Filter value.",
 	)
-}
-
-func TestCleanPatternsDirectory(t *testing.T) {
-	
 }
