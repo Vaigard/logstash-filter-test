@@ -28,17 +28,15 @@ RUN rm /usr/share/logstash/pipeline/logstash.conf
 
 COPY ./README.md /usr/share/logstash/README.md
 COPY ./container/supervisord.conf /etc/supervisor/supervisord.conf
-COPY ./container/config/logstash.yml /usr/share/logstash/config/logstash.yml
-COPY ./container/config/pipelines.yml /usr/share/logstash/config/pipelines.yml
-COPY ./container/pipeline/filter.conf /usr/share/logstash/pipeline/filter.conf
-COPY ./container/pipeline/io.conf /usr/share/logstash/pipeline/io.conf
+COPY ./container/config/* /usr/share/logstash/config/*
+COPY ./container/pipeline/* /usr/share/logstash/pipeline/*
 
 COPY --from=0 /root/server /usr/share/logstash/server
 
 RUN \
   mkdir /usr/share/logstash/patterns && \
   chown logstash:root /usr/share/logstash/server && \
-  chown logstash:root /usr/share/logstash/pipeline/filter.conf && \
+  chown -R logstash:root /usr/share/logstash/pipeline && \
   chown logstash:root /usr/share/logstash/patterns
 
 ENTRYPOINT ["/usr/bin/supervisord"]
