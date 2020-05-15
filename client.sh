@@ -1,13 +1,13 @@
 #!/bin/sh
 
-if [ "$#" -ne 6 ] && [ "$#" -ne 10 ]; then
-  echo "Usage: ./client.sh -s <server> -f <filter file name> -m <message file name> [-p <patterns file name> -d <patterns directories>]" >&2
+if [ "$#" -lt 6 ]; then
+  echo "Usage: ./client.sh -s <server> -f <filter file name> -m <message file name> [-p <patterns file name> -d <patterns directories>] [-c <input codec>]" >&2
   exit 1
 fi
 
-while getopts ":f:m:s:p:d:" opt; do
+while getopts ":f:m:s:p:d:c:" opt; do
   case $opt in
-  	s) server="$OPTARG"
+    s) server="$OPTARG"
     ;;
     f) filter_file="$OPTARG"
     ;;
@@ -17,7 +17,9 @@ while getopts ":f:m:s:p:d:" opt; do
     ;;
     d) patterns_dir="$OPTARG"
     ;;
-    \?) echo "Invalid option: -$OPTARG" >&2 && exit 1
+    c) codec="$OPTARG"
+    ;;
+    \?) echo "Invalid option: -$OPTARG, call without args." >&2 && exit 1
     ;;
   esac
 done
@@ -44,8 +46,18 @@ if [ "$ping_res" != "pong" ]; then
 	exit 1
 fi
 
-if [ ! -f "$patterns_file" ]; then
+if [ ! -f "$patterns_file" ] && [ -z "$codec" ]; then
   curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" "$server"/upload && echo
-else
+fi
+
+if [ ! -f "$patterns_file" ] && [ ! -z "$codec" ]; then
+  curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" -F "codec=$codec" "$server"/upload && echo
+fi
+
+if [ -f "$patterns_file" ] && [ -z "$codec" ]; then
   curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" -F "patterns=@$patterns_file" -F "patterns_dir=$patterns_dir" "$server"/upload && echo
+fi
+
+if [ -f "$patterns_file" ] && [ ! -z "$codec" ]; then
+  curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" -F "codec=$codec" -F "patterns=@$patterns_file" -F "patterns_dir=$patterns_dir" "$server"/upload && echo
 fi

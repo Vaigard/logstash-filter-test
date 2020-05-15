@@ -22,16 +22,17 @@ const (
 )
 
 const (
-	LogstashInputPort      = 8182
-	ServerLogPath          = "server.log"
-	ReadmeFile             = "README.md"
-	FilterFilePath         = "/usr/share/logstash/pipeline/filter.conf"
-	OutputFilePath         = "/usr/share/logstash/output.json"
-	PatternsDirectory      = "/usr/share/logstash/patterns"
-	PatternsFileNameLength = 5
+	LogstashInputPort = 8182
+	ServerLogPath     = "server.log"
+	ReadmeFile        = "README.md"
+	FilterFilePath    = "/usr/share/logstash/pipeline/filter.conf"
+	IoFilePath        = "/usr/share/logstash/pipeline/io.conf"
+	OutputFilePath    = "/usr/share/logstash/output.json"
+	PatternsDirectory = "/usr/share/logstash/patterns"
 )
 
 type logstashPipelineInput struct {
+	Codec        string
 	Message      string
 	Filter       string
 	Patterns     string
@@ -108,6 +109,16 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
 		defer os.Remove(patternFilePath)
 	}
 
+	if pipelineInput.Codec != "" {
+		err = addInputCodec(IoFilePath, pipelineInput.Codec)
+		if err != nil {
+			pipelineOutput = fmt.Sprintf("{\"Error\": \"Cannot write codec to input plugin: %s\"}", err.Error())
+			log.Println(err.Error())
+			return
+		}
+		defer restoreConfigFile(IoFilePath)
+	}
+
 	err = ioutil.WriteFile(FilterFilePath, []byte(pipelineInput.Filter), 0644)
 	if err != nil {
 		pipelineOutput = fmt.Sprintf("{\"Error\": \"Cannot write filter: %s\"}", err.Error())
@@ -115,7 +126,7 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
 		return
 	}
 
-	defer ioutil.WriteFile(FilterFilePath, []byte("filter{}\n"), 0644)
+	defer restoreConfigFile(FilterFilePath)
 
 	// wait for restart pipeline (autoreload in 2 seconds)
 	time.Sleep(5 * 1000 * time.Millisecond)
@@ -145,13 +156,15 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, error) {
 
 		// Any other error
 		if err != nil {
-			return pipelineInput, fmt.Errorf("Get new request part error: %s", err.Error())
+			return pipelineInput, fmt.Errorf("Got new request part error: %s", err.Error())
 		}
 
 		var buffer bytes.Buffer
 		io.Copy(&buffer, part)
 
 		switch part.FormName() {
+		case "codec":
+			pipelineInput.Codec = buffer.String()
 		case "filter":
 			pipelineInput.Filter = buffer.String()
 		case "message":
@@ -161,7 +174,7 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, error) {
 		case "patterns_dir":
 			pipelineInput.PatternsDirs = buffer.String()
 		default:
-			return pipelineInput, fmt.Errorf("Invalid multipart data in request")
+			return pipelineInput, fmt.Errorf("Invalid multipart data in request. Part: %s, value: %s", part.FormName(), buffer.String())
 		}
 	}
 
@@ -255,4 +268,36 @@ func changePatternsDirs(pipelineInput *logstashPipelineInput, actualPatternsDire
 	}
 
 	log.Println(pipelineInput.Filter)
+}
+
+func addInputCodec(file string, codec string) error {
+	codecStr := fmt.Sprintf("codec => %s", codec)
+
+	content, err := ioutil.ReadFile(file)
+	if err != nil {
+		return fmt.Errorf("Cannot read file %s: %s", file, err.Error())
+	}
+
+	contentWithCodec := strings.Replace(string(content), "########", codecStr, 1)
+
+	err = ioutil.WriteFile(file, []byte(contentWithCodec), 0644)
+	if err != nil {
+		return fmt.Errorf("Cannot write file %s: %s", file, err.Error())
+	}
+
+	return nil
+}
+
+func restoreConfigFile(file string) error {
+	content, err := ioutil.ReadFile(file + ".bak")
+	if err != nil {
+		return fmt.Errorf("Cannot read backup of file %s: %s", file, err.Error())
+	}
+
+	err = ioutil.WriteFile(file, content, 0644)
+	if err != nil {
+		return fmt.Errorf("Cannot write file %s: %s", file, err.Error())
+	}
+
+	return nil
 }
