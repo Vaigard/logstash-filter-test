@@ -156,7 +156,7 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, error) {
 
 		// Any other error
 		if err != nil {
-			return pipelineInput, fmt.Errorf("Get new request part error: %s", err.Error())
+			return pipelineInput, fmt.Errorf("Got new request part error: %s", err.Error())
 		}
 
 		var buffer bytes.Buffer
@@ -174,7 +174,7 @@ func getPipelineInput(request *http.Request) (logstashPipelineInput, error) {
 		case "patterns_dir":
 			pipelineInput.PatternsDirs = buffer.String()
 		default:
-			return pipelineInput, fmt.Errorf("Invalid multipart data in request")
+			return pipelineInput, fmt.Errorf("Invalid multipart data in request. Part: %s, value: %s", part.FormName(), buffer.String())
 		}
 	}
 

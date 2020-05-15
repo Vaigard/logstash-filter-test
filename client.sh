@@ -5,9 +5,9 @@ if [ "$#" -lt 6 ]; then
   exit 1
 fi
 
-while getopts ":f:m:s:p:d:c" opt; do
+while getopts ":f:m:s:p:d:c:" opt; do
   case $opt in
-  	s) server="$OPTARG"
+    s) server="$OPTARG"
     ;;
     f) filter_file="$OPTARG"
     ;;
@@ -46,18 +46,18 @@ if [ "$ping_res" != "pong" ]; then
 	exit 1
 fi
 
-if [ ! -f "$patterns_file" ] && [ ! -f "$codec" ]; then
+if [ ! -f "$patterns_file" ] && [ -z "$codec" ]; then
   curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" "$server"/upload && echo
 fi
 
-if [ ! -f "$patterns_file" ] && [ -f "$codec" ]; then
+if [ ! -f "$patterns_file" ] && [ ! -z "$codec" ]; then
   curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" -F "codec=$codec" "$server"/upload && echo
 fi
 
-if [ -f "$patterns_file" ] && [ ! -f "$codec" ]; then
+if [ -f "$patterns_file" ] && [ -z "$codec" ]; then
   curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" -F "patterns=@$patterns_file" -F "patterns_dir=$patterns_dir" "$server"/upload && echo
 fi
 
-if [ -f "$patterns_file" ] && [ -f "$codec" ]; then
+if [ -f "$patterns_file" ] && [ ! -z "$codec" ]; then
   curl --request POST -F "filter=@$filter_file" -F "message=@$message_file" -F "codec=$codec" -F "patterns=@$patterns_file" -F "patterns_dir=$patterns_dir" "$server"/upload && echo
 fi

@@ -28,8 +28,8 @@ RUN rm /usr/share/logstash/pipeline/logstash.conf
 
 COPY ./README.md /usr/share/logstash/README.md
 COPY ./container/supervisord.conf /etc/supervisor/supervisord.conf
-COPY ./container/config/* /usr/share/logstash/config/*
-COPY ./container/pipeline/* /usr/share/logstash/pipeline/*
+COPY ./container/config/* /usr/share/logstash/config/
+COPY ./container/pipeline/* /usr/share/logstash/pipeline/
 
 COPY --from=0 /root/server /usr/share/logstash/server
 
