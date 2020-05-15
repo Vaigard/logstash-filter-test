@@ -22,13 +22,13 @@ const (
 )
 
 const (
-	LogstashInputPort      = 8182
-	ServerLogPath          = "server.log"
-	ReadmeFile             = "README.md"
-	FilterFilePath         = "/usr/share/logstash/pipeline/filter.conf"
-	IoFilePath             = "/usr/share/logstash/pipeline/io.conf"
-	OutputFilePath         = "/usr/share/logstash/output.json"
-	PatternsDirectory      = "/usr/share/logstash/patterns"
+	LogstashInputPort = 8182
+	ServerLogPath     = "server.log"
+	ReadmeFile        = "README.md"
+	FilterFilePath    = "/usr/share/logstash/pipeline/filter.conf"
+	IoFilePath        = "/usr/share/logstash/pipeline/io.conf"
+	OutputFilePath    = "/usr/share/logstash/output.json"
+	PatternsDirectory = "/usr/share/logstash/patterns"
 )
 
 type logstashPipelineInput struct {
@@ -274,30 +274,30 @@ func addInputCodec(file string, codec string) error {
 	codecStr := fmt.Sprintf("codec => %s", codec)
 
 	content, err := ioutil.ReadFile(file)
-    if err != nil {
-        return fmt.Errorf("Cannot read file %s: %s", file, err.Error())
-    }
+	if err != nil {
+		return fmt.Errorf("Cannot read file %s: %s", file, err.Error())
+	}
 
 	contentWithCodec := strings.Replace(string(content), "########", codecStr, 1)
 
 	err = ioutil.WriteFile(file, []byte(contentWithCodec), 0644)
-    if err != nil {
-        return fmt.Errorf("Cannot write file %s: %s", file, err.Error())
-    }
+	if err != nil {
+		return fmt.Errorf("Cannot write file %s: %s", file, err.Error())
+	}
 
 	return nil
 }
 
 func restoreConfigFile(file string) error {
 	content, err := ioutil.ReadFile(file + ".bak")
-    if err != nil {
-        return fmt.Errorf("Cannot read backup of file %s: %s", file, err.Error())
-    }
+	if err != nil {
+		return fmt.Errorf("Cannot read backup of file %s: %s", file, err.Error())
+	}
 
-    err = ioutil.WriteFile(file, content, 0644)
-    if err != nil {
-        return fmt.Errorf("Cannot write file %s: %s", file, err.Error())
-    }
+	err = ioutil.WriteFile(file, content, 0644)
+	if err != nil {
+		return fmt.Errorf("Cannot write file %s: %s", file, err.Error())
+	}
 
-    return nil
+	return nil
 }
