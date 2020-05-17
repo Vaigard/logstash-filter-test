@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -37,6 +38,20 @@ type logstashPipelineInput struct {
 	Filter       string
 	Patterns     string
 	PatternsDirs string
+}
+
+type reloads struct {
+	Failures  int `json:"failures"`
+	Successes int `json:"successes"`
+}
+type mainPipeline struct {
+	Reload reloads `json:"reloads"`
+}
+type pipeline struct {
+	Main mainPipeline `json:"main"`
+}
+type pipelinesStatus struct {
+	Pipelines pipeline `json:"pipelines"`
 }
 
 func main() {
@@ -119,6 +134,8 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
 		defer restoreConfigFile(IoFilePath)
 	}
 
+	successesBefore, failuresBefore := pipelineReloadStatus()
+
 	err = ioutil.WriteFile(FilterFilePath, []byte(pipelineInput.Filter), 0644)
 	if err != nil {
 		pipelineOutput = fmt.Sprintf("{\"Error\": \"Cannot write filter: %s\"}", err.Error())
@@ -128,8 +145,19 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
 
 	defer restoreConfigFile(FilterFilePath)
 
-	// wait for restart pipeline (autoreload in 2 seconds)
-	time.Sleep(5 * 1000 * time.Millisecond)
+	successesAfter, failuresAfter := pipelineReloadStatus()
+
+	for {
+		if successesAfter > successesBefore && failuresAfter <= failuresBefore {
+			break
+		}
+
+		time.Sleep(1 * 1000 * time.Millisecond)
+
+		successesAfter, failuresAfter = pipelineReloadStatus()
+	}
+
+	time.Sleep(2 * 1000 * time.Millisecond)
 
 	pipelineOutput, err = processPipeline(pipelineInput, OutputFilePath, LogstashInputPort)
 
@@ -246,6 +274,30 @@ func getLogstashOutput(fileName string) (string, error) {
 	}
 
 	return string(output), nil
+}
+
+func pipelineReloadStatus() (int, int) {
+	url := "http://localhost:9600/_node/stats/pipelines?pretty"
+
+	request, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Fatalf("Could not create a HTTP request to %s, error: %s\n", url, err.Error())
+	}
+
+	response, err := (&http.Client{}).Do(request)
+	if err != nil {
+		log.Fatalf("GET %s returned an error: %s\n", url, err.Error())
+	}
+	defer response.Body.Close()
+
+	var currentPipelineStatus pipelinesStatus
+
+	err = json.NewDecoder(response.Body).Decode(&currentPipelineStatus)
+	if err != nil {
+		return 0, 0
+	}
+
+	return currentPipelineStatus.Pipelines.Main.Reload.Successes, currentPipelineStatus.Pipelines.Main.Reload.Failures
 }
 
 func sendMessagesToLogstash(connection *net.UDPConn, messages []string, port int) error {
