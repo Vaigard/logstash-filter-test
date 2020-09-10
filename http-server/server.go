@@ -128,8 +128,7 @@ func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.R
 
 	defer restoreConfigFile(FilterFilePath)
 
-	// wait for restart pipeline (autoreload in 2 seconds)
-	time.Sleep(5 * 1000 * time.Millisecond)
+	time.Sleep(20 * 1000 * time.Millisecond)
 
 	pipelineOutput, err = processPipeline(pipelineInput, OutputFilePath, LogstashInputPort)
 
