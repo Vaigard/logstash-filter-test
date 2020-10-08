@@ -11,8 +11,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
+
+var mu sync.Mutex
 
 const (
 	RequestTypeCorrect      = 0
@@ -77,6 +80,8 @@ func pingHandler(responseWriter http.ResponseWriter, request *http.Request) {
 // "/upload"
 // Gets the logstash filter and testing data.
 func logstashPipelineHandler(responseWriter http.ResponseWriter, request *http.Request) {
+	mu.Lock()
+	defer mu.Unlock()
 	log.Println("Got new request")
 
 	var pipelineOutput string
